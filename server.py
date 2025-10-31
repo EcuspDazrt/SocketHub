@@ -28,7 +28,6 @@ def broadcast(message, sender_addr, user):
                 data = message.encode(FORMAT)
                 header = f"MSG|{len(message)}||".encode(FORMAT)
                 conn.sendall(header + data)
-                print(f"{user} has sent the message to other clients")
             except:
                 conn.close()
                 del clients[addr]
@@ -37,7 +36,6 @@ def broadcast(message, sender_addr, user):
 def broadcast_file(filename, filesize, f, user, sender_addr):
     # num_pending_files += 1
     for addr, conn in clients.items():
-        print(addr, sender_addr)
         if addr != sender_addr:
             try:
                 message = f"{user} is trying to share {filename} with you. \nEnter '{ACCEPT_MESSAGE}' to receive the file".encode(FORMAT)
@@ -113,7 +111,7 @@ def handle_client(conn, addr):
                                 break
                             conn.sendall(bytes_read)
 
-                    print(f"Sent '{filename}' to {addr}")
+                    # print(f"Sent '{filename}' to {addr}")
                 if userSent:
                     print(f"[{user}] {message}")
                     broadcast(f"{user}: {message}", addr, user)

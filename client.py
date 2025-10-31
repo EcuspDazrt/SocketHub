@@ -19,7 +19,6 @@ def receive():
             header = b""
             while not header.endswith(b"||"):
                 chunk = client.recv(1)
-                print(chunk)
                 if chunk:
                     header += chunk
 
@@ -32,11 +31,9 @@ def receive():
 
             match data_type:
                 case "MSG":
-                    print("msg")
                     message = client.recv(length).decode(FORMAT)
                     print(message)
                 case "FILE":
-                    print("file")
                     filename = parts[2]
                     receive_file(client, filename, length)
         except Exception:
@@ -98,7 +95,6 @@ def send_file(filepath):
     filesize = os.path.getsize(filepath)
     header = f"FILE|{filesize}|{filename}||".encode(FORMAT)
     client.sendall(header)
-    print(header)
 
     with open(filepath, "rb") as f:
         while True:

@@ -1,5 +1,7 @@
 import socket
 import threading
+import os
+import re
 
 HEADER = 64
 PORT = 5050
@@ -21,6 +23,25 @@ pending_files = {}
 num_pending_files = 0
 num_accepted = 0
 
+def sanitize_username(name: str) -> str:
+    # No escape characters
+    name = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', name)
+    # No control characters (ASCII < 32 or DEL = 127)
+    name = ''.join(ch for ch in name if 32 <= ord(ch) <= 126)
+    # limit length
+    return name[:20]
+
+def read_header(conn):
+    data = b""
+    while b"||" not in data:
+        chunk = conn.recv(1)
+        if not chunk:
+            raise ConnectionResetError("Connection closed while reading header")
+        data += chunk
+    # Split off the '||'
+    header = data[:-2].decode('utf-8')
+    return header
+
 def broadcast(message, sender_addr, user):
     for addr, conn in clients.items():
         if addr != sender_addr:
@@ -38,7 +59,7 @@ def broadcast_file(filename, filesize, f, user, sender_addr):
     for addr, conn in clients.items():
         if addr != sender_addr:
             try:
-                message = f"{user} is trying to share {filename} with you. \nEnter '{ACCEPT_MESSAGE}' to receive the file".encode(FORMAT)
+                message = f"{user} is trying to share {filename} with you. \nEnter '{ACCEPT_MESSAGE} <filename>' to receive the file".encode(FORMAT)
                 header = f"MSG|{len(message)}||".encode(FORMAT)
                 conn.send(header + message)
             except:
@@ -46,21 +67,14 @@ def broadcast_file(filename, filesize, f, user, sender_addr):
                 del clients[addr]
 
 def handle_client(conn, addr):
-    print(f"[NEW CONNETION] {addr} connected.")
+    print(f"[NEW CONNECTION] {addr} connected.")
     clients[addr] = conn
     user = " "
     userSent = False
     connected = True
     while connected:
         try:
-            header = b""
-            while not header.endswith(b"||"):
-                chunk = conn.recv(1)
-                if not chunk:
-                    raise ConnectionResetError    
-                header += chunk
-
-            header = header[:-2].decode(FORMAT)
+            header = read_header(conn)
             parts = header.split("|")
             data_type = parts[0]
 
@@ -104,9 +118,9 @@ def handle_client(conn, addr):
                     header = f"FILE|{filesize}|{filename}||".encode(FORMAT)
                     conn.sendall(header)
 
-                    with open (filename, "rb") as f:
+                    with open (f"server_files/{filename}", "rb") as f:
                         while True:
-                            bytes_read = f.read(1024)
+                            bytes_read: bytes = f.read(1024)
                             if not bytes_read:
                                 break
                             conn.sendall(bytes_read)
@@ -117,12 +131,33 @@ def handle_client(conn, addr):
                     broadcast(f"{user}: {message}", addr, user)
 
                 if not userSent:
-                    user = message
+                    user = sanitize_username(message)
+                    if not user.strip():
+                        user = "Anonymous"
                     userSent = True
             if data_type == "FILE":
-                filesize = int(parts[1])
+                filesize: int = int(parts[1])
                 filename = parts[2]
-                receive_file(conn, filename, filesize, user, addr)
+                
+                os.makedirs("server_files", exist_ok=True)
+                safe_name = os.path.basename(filename)
+                filepath = os.path.join("server_files", safe_name)
+
+                print(f"[RECEIVING FILE] {filename} ({filesize} bytes) from {user}")
+
+                with open(filepath, "wb") as f:
+                    bytes_read = 0
+                    while bytes_read < filesize:
+                        chunk = conn.recv(min(2048, filesize - bytes_read))
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        bytes_read += len(chunk)
+
+                print(f"[SAVED] {filepath} from {user}: {filename} ({filesize} bytes)")
+
+                pending_files[filename] = (user, filepath, filesize)
+                broadcast_file(filename, filesize, f, user, addr)
         except ConnectionResetError:
             print(f"{user} disconnected.")
             break
@@ -153,7 +188,11 @@ def getConnections():
 def receive_file(conn, filename, filesize, user, addr):
     filepath = f"server_files/{filename}"
     print(filepath)
-    with open(filename, "wb") as f:
+    os.makedirs("server_files", exist_ok=True)
+
+    safe_name = os.path.basename(filename)
+    filepath = os.path.join("server_files", safe_name)
+    with open(filepath, "wb") as f:
         bytes_read = 0
         while bytes_read < filesize:
             chunk = conn.recv(1024)

@@ -7,7 +7,7 @@ HEADER = 64
 PORT = 5050
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
-SERVER = "192.168.208.34"
+SERVER = "192.168.208.136"
 ADDR = (SERVER, PORT)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -52,14 +52,15 @@ def receive_file(client, filename, filesize, download_dir="downloads"):
     with open(filepath, "wb") as f:
         bytes_received = 0
         while bytes_received < filesize:
+            
             chunk_size = min(2048, filesize - bytes_received)
             chunk = client.recv(chunk_size)
-            if not chunk:
-                print(f"[ERROR] Connection lost while receiving {filename}")
-                return False
-            
-            f.write(chunk)
-            bytes_received += len(chunk)
+            # if not chunk:
+            #     print(f"[ERROR] Connection lost while receiving {filename}")
+            #     return False
+            if chunk:
+                f.write(chunk)
+                bytes_received += len(chunk)
 
     print(f"[DOWNLOAD COMPLETE] ({filesize} bytes) saved to {filepath}")
     return True

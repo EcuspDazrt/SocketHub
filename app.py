@@ -64,11 +64,9 @@ class App(ctk.CTk):
 
         self.outline(self.joinbutton)
 
-
     def connect(self, ip):
-        threading.Thread(target=clientmethod.start, args=(ip,), daemon=True).start()
-        chatroom.Chatroom(self)
         self.withdraw()
+        chatroom.Chatroom(ip)
 
 
     def outline(self, button):

@@ -1,49 +1,56 @@
 import socket
 import threading
 
-addr = ""
 HEADER = 64
 PORT = 5050
-FORMAT = 'utf-8'
+FORMAT = "utf-8"
 DISCONNECT_MESSAGE = "!DISCONNECT"
 
-def start(ip):
-    global addr
+client = None
+
+
+def read_header(sock):
+    data = b""
+    while b"||" not in data:
+        chunk = sock.recv(1)
+        if not chunk:
+            raise ConnectionResetError("Connection closed")
+        data += chunk
+    return data[:-2].decode(FORMAT)  # remove '||'
+
+
+def start(ip, message_callback):
+    global client
     addr = (ip, PORT)
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect(addr)
-    print("hi")
-
 
     def receive():
         while True:
             try:
-                msg = client.recv(2048).decode(FORMAT)
-                if msg:
-                    print(msg)
-            except:
-                print("[DISCONNECTED FROM SERVER]")
+                header = read_header(client)
+                parts = header.split("|")
+                dtype = parts[0]
+
+                if dtype == "MSG":
+                    msg_len = int(parts[1])
+                    data = client.recv(msg_len).decode(FORMAT)
+                    message_callback(data)
+
+                elif dtype == "FILE":
+                    # skip file handling for now
+                    pass
+
+            except Exception as e:
+                message_callback(f"[ERROR] {e}")
                 client.close()
                 break
-
-
-    def send():
-        while True:
-            msg = input()
-            message = msg.encode(FORMAT)
-            msg_length = len(message)
-            send_length = str(msg_length).encode(FORMAT)
-            send_length += b' ' * (HEADER - len(send_length))
-            client.send(send_length)
-            client.send(message)
-
-            if msg == DISCONNECT_MESSAGE:
-                client.close()
-                break
-
 
     threading.Thread(target=receive, daemon=True).start()
-    send()
 
-def getip():
-    return addr
+
+def send_message(msg):
+    if client:
+        msg_bytes = msg.encode(FORMAT)
+        header = f"MSG|{len(msg_bytes)}||".encode(FORMAT)
+        client.sendall(header + msg_bytes)

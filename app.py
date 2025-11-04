@@ -4,10 +4,11 @@
 import threading
 import customtkinter as ctk
 from PIL import Image
-import client
+import clientmethod
+import chatroom
 from customtkinter import CTkButton, CTkFrame
 
-# Main App File
+# Launcher File
 # - Made using Python 3.13
 
 ctk.set_appearance_mode("light")
@@ -65,7 +66,9 @@ class App(ctk.CTk):
 
 
     def connect(self, ip):
-        threading.Thread(target=client.start, args=(ip,), daemon=True).start()
+        threading.Thread(target=clientmethod.start, args=(ip,), daemon=True).start()
+        chatroom.Chatroom(self)
+        self.withdraw()
 
 
     def outline(self, button):

@@ -1,12 +1,14 @@
 import socket
 import threading
 
+addr = ""
 HEADER = 64
 PORT = 5050
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
 
 def start(ip):
+    global addr
     addr = (ip, PORT)
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect(addr)
@@ -42,3 +44,6 @@ def start(ip):
 
     threading.Thread(target=receive, daemon=True).start()
     send()
+
+def getip():
+    return addr

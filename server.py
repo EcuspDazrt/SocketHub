@@ -74,10 +74,11 @@ def broadcast_file(filename, filesize, f, user, sender_addr):
                 send_users(conn)
 
 def send_users(conn):
-    safe_users = {f"{a[0]}:{a[1]}": u for a, u in users.items()}
-    encoded_users = json.dumps(safe_users).encode(FORMAT)
-    header = f"USERS|{len(encoded_users)}|{getConnections()}||".encode(FORMAT)
-    conn.sendall(header + encoded_users)
+    for addr, conn in clients.items():
+        safe_users = {f"{a[0]}:{a[1]}": u for a, u in users.items()}
+        encoded_users = json.dumps(safe_users).encode(FORMAT)
+        header = f"USERS|{len(encoded_users)}|{getConnections()}||".encode(FORMAT)
+        conn.sendall(header + encoded_users)
 
 def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
@@ -149,6 +150,7 @@ def handle_client(conn, addr):
                     send_users(conn)
                     if not user.strip():
                         conn.close()
+                    userSent = True
             if data_type == "FILE":
                 filesize: int = int(parts[1])
                 filename = parts[2]

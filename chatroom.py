@@ -40,7 +40,7 @@ class Chatroom(ctk.CTkToplevel):
         logo_label.image = long_logo
         logo_label.place(x=0, y=00)
 
-        self.cuserspanel = ctk.CTkFrame(self, width=179, height=532, fg_color="#B9C3CD")
+        self.cuserspanel = ctk.CTkScrollableFrame(self, width=179, height=532, fg_color="#B9C3CD")
         self.cuserspanel.place(x=630, y=0)
 
         self.cusersline = ctk.CTkFrame(self, width=15, height=560, fg_color="#839EB7")
@@ -71,10 +71,13 @@ class Chatroom(ctk.CTkToplevel):
     def display_message(self, msg):
         self.after(0, lambda: self._display(msg))
 
-    # length is the number of connections
-    def display_users(self, users, length):
-        print(users)
-        print(length)
+    def display_users(self, users, conns):
+        first_user = next(iter(users.values()))
+        self.titlebar.configure(text=f"{first_user}'s Chatroom")
+        for user in users.values():
+            print(user)
+       # label = ctk.CTkLabel(self.chat_frame, text=msg, anchor="w", justify="left", text_color="white")
+        #label.pack(fill="x", pady=2)
 
     def _display(self, msg):
         label = ctk.CTkLabel(self.chat_frame, text=msg, anchor="w", justify="left", text_color="white")

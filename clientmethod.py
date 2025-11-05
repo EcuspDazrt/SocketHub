@@ -2,6 +2,7 @@ import socket
 import threading
 import traceback
 import os
+import json
 
 HEADER = 64
 PORT = 5051
@@ -54,7 +55,8 @@ def start(ip, message_callback, display_users):
                     case "USERS":
                         connections = parts[2]
                         users = client.recv(length).decode(FORMAT)
-                        _users(users, connections)
+                        users_dict = json.loads(users)
+                        _users(users_dict, connections)
 
             except Exception as e:
                 if _callback:

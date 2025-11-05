@@ -52,6 +52,8 @@ class Chatroom(ctk.CTk):
         self.entry = ctk.CTkEntry(self, width=500)
         self.entry.place(x=15, y=485)
 
+        self.entry.bind("<Return>", lambda event: self.send())
+
         self.send_button = ctk.CTkButton(self, text="Send", command=self.send, width=100)
         self.send_button.place(x=520, y=485)
 

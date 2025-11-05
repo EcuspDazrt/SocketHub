@@ -17,7 +17,7 @@ from customtkinter import CTkButton, CTkFrame
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-class Chatroom(ctk.CTk):
+class Chatroom(ctk.CTkToplevel):
     def __init__(self, ip):
         super().__init__()
         self.title("SocketHub Chatroom")
@@ -63,13 +63,18 @@ class Chatroom(ctk.CTk):
 
         self.messages = []
 
-        threading.Thread(target=lambda: clientmethod.start(ip, self.display_message), daemon=True).start()
+        threading.Thread(target=lambda: clientmethod.start(ip, self.display_message, self.display_users), daemon=True).start()
 
         self.titlebar = ctk.CTkLabel(self, text=f"{ip}'s Chatroom", font=("Roboto", 25, "bold"), text_color="white")
         self.titlebar.place(x=180, y=10)
 
     def display_message(self, msg):
         self.after(0, lambda: self._display(msg))
+
+    # length is the number of connections
+    def display_users(self, users, length):
+        print(users)
+        print(length)
 
     def _display(self, msg):
         label = ctk.CTkLabel(self.chat_frame, text=msg, anchor="w", justify="left", text_color="white")

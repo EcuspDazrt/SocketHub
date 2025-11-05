@@ -2,9 +2,10 @@ import socket
 import threading
 import os
 import re
+import json
 
 HEADER = 64
-PORT = 5050
+PORT = 5051
 # more efficient to use this to universally get the ip address of any computer
 SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
@@ -16,9 +17,11 @@ FILE_MESSAGE = "!FILE"
 
 requestAccept = False
 
+
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
 clients = {}
+users = {}
 pending_files = {}
 num_pending_files = 0
 num_accepted = 0
@@ -52,6 +55,8 @@ def broadcast(message, sender_addr, user):
             except:
                 conn.close()
                 del clients[addr]
+                del users[addr]
+                send_users(conn)
                 print(f"{user} disconnected")
 
 def broadcast_file(filename, filesize, f, user, sender_addr):
@@ -65,6 +70,14 @@ def broadcast_file(filename, filesize, f, user, sender_addr):
             except:
                 conn.close()
                 del clients[addr]
+                del users[addr]
+                send_users(conn)
+
+def send_users(conn):
+    safe_users = {f"{a[0]}:{a[1]}": u for a, u in users.items()}
+    encoded_users = json.dumps(safe_users).encode(FORMAT)
+    header = f"USERS|{len(encoded_users)}|{getConnections()}||".encode(FORMAT)
+    conn.sendall(header + encoded_users)
 
 def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
@@ -132,9 +145,10 @@ def handle_client(conn, addr):
 
                 if not userSent:
                     user = sanitize_username(message)
+                    users[addr] = user
+                    send_users(conn)
                     if not user.strip():
-                        user = "Anonymous"
-                    userSent = True
+                        conn.close()
             if data_type == "FILE":
                 filesize: int = int(parts[1])
                 filename = parts[2]
@@ -167,6 +181,8 @@ def handle_client(conn, addr):
 
     if addr in clients:
         del clients[addr]
+        del users[addr]
+        send_users(conn)
     try:
         conn.close()
     except:
@@ -180,7 +196,7 @@ def start():
         conn, addr = server.accept()
         thread = threading.Thread(target=handle_client, args=(conn, addr))
         thread.start()
-        print(f"[ACTIVE CONNECTIONS] {threading.active_count() - 1}")
+        print(f"[ACTIVE CONNECTIONS] {getConnections()}")
 
 def getConnections():
     return threading.active_count() - 1
@@ -205,5 +221,6 @@ def receive_file(conn, filename, filesize, user, addr):
         broadcast_file(filename, filesize, f, user, addr)
         # num_pending_files += 1
 
-print("[STARTING] Server is starting...")
-start()
+if __name__ == "__main__":
+    print("[STARTING] Server is starting...")
+    start()

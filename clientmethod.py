@@ -4,7 +4,7 @@ import traceback
 import os
 
 HEADER = 64
-PORT = 5050
+PORT = 5051
 FORMAT = "utf-8"
 DISCONNECT_MESSAGE = "!DISCONNECT"
 
@@ -12,11 +12,13 @@ client = None
 _callback = None
 
 
-def start(ip, message_callback):
-    global client, _callback
+def start(ip, message_callback, display_users):
+    global client, _callback, _users
     _callback = message_callback
+    _users = display_users
     addr = (ip, PORT)
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 
     try:
         client.connect(addr)
@@ -49,6 +51,10 @@ def start(ip, message_callback):
                     case "FILE":
                         filename = parts[2]
                         receive_file(client, filename, length)
+                    case "USERS":
+                        connections = parts[2]
+                        users = client.recv(length).decode(FORMAT)
+                        _users(users, connections)
 
             except Exception as e:
                 if _callback:

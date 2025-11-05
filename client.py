@@ -55,9 +55,6 @@ def receive_file(client, filename, filesize, download_dir="downloads"):
             
             chunk_size = min(2048, filesize - bytes_received)
             chunk = client.recv(chunk_size)
-            # if not chunk:
-            #     print(f"[ERROR] Connection lost while receiving {filename}")
-            #     return False
             if chunk:
                 f.write(chunk)
                 bytes_received += len(chunk)
@@ -85,11 +82,6 @@ def send_message(message: str):
     header = f"MSG|{len(data)}||".encode(FORMAT)
     client.sendall(header + data)
 
-    # msg_length = len(message)
-    # send_length = str(msg_length).encode(FORMAT)
-    # send_length += b' ' * (HEADER - len(send_length))
-    # client.send(send_length)
-    # client.send(message)
 
 def send_file(filepath):
     filename = os.path.basename(filepath)

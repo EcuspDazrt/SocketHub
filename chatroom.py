@@ -4,6 +4,8 @@
 # - Chatroom
 
 import threading
+from tkinter import filedialog
+
 import customtkinter as ctk
 from PIL import Image
 import clientmethod
@@ -61,7 +63,6 @@ class Chatroom(ctk.CTkToplevel):
         self.titlebar.place(x=180, y=10)
 
     def display_message(self, msg):
-        # run safely in UI thread
         self.after(0, lambda: self._display(msg))
 
     def _display(self, msg):
@@ -71,10 +72,18 @@ class Chatroom(ctk.CTkToplevel):
 
     def send(self):
         msg = self.entry.get().strip()
-        if msg:
+        if not msg.startswith("!FILE"):
             clientmethod.send_message(msg)
             self.display_message(f"You: {msg}")  # show your own message immediately
             self.entry.delete(0, "end")
+        else:
+            self.send_file()
+
+    def send_file(self):
+        filepath = filedialog.askopenfilename()
+        if filepath:
+            clientmethod.send_file(filepath)
+
 
 if __name__ == "__main__":
     app = Chatroom(ip="192.168.208.80")

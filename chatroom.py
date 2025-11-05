@@ -57,7 +57,6 @@ class Chatroom(ctk.CTk):
         self.send_button = ctk.CTkButton(self, text="Send", command=self.send, width=100)
         self.send_button.place(x=520, y=485)
 
-        self.entry.bind("<Return>", lambda event: self.send())
 
         self.file_button = ctk.CTkButton(self, text="+", font=("Roboto", 20), command=self.send_file, width=30, height=30)
         self.file_button.place(x=521, y=445)

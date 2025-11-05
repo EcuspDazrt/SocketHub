@@ -17,7 +17,7 @@ from customtkinter import CTkButton, CTkFrame
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-class Chatroom(ctk.CTkToplevel):
+class Chatroom(ctk.CTk):
     def __init__(self, ip):
         super().__init__()
         self.title("SocketHub Chatroom")
@@ -50,12 +50,16 @@ class Chatroom(ctk.CTkToplevel):
         self.chat_frame.place(x=30, y=70)
 
         self.entry = ctk.CTkEntry(self, width=500)
-        self.entry.place(x=15, y=470)
+        self.entry.place(x=15, y=485)
 
         self.entry.bind("<Return>", lambda event: self.send())
 
         self.send_button = ctk.CTkButton(self, text="Send", command=self.send, width=100)
-        self.send_button.place(x=520, y=470)
+        self.send_button.place(x=520, y=485)
+
+
+        self.file_button = ctk.CTkButton(self, text="+", font=("Roboto", 20), command=self.send_file, width=30, height=30)
+        self.file_button.place(x=521, y=445)
 
         self.messages = []
 

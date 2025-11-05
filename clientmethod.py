@@ -81,10 +81,10 @@ def send_file(filepath):
                     break
                 client.sendall(bytes_read)
 
-            _callback(f"Sent file: {filename}")
+            _callback(f"[SENT FILE] {filename}")
 
 def receive_file(client, filename, filesize, download_dir="downloads"):
-    _callback("receiving file")
+    _callback(f"[RECEIVING FILE] {filename}")
     os.makedirs(download_dir, exist_ok=True)
 
     safe_name = os.path.basename(filename)

@@ -26,6 +26,8 @@ class Chatroom(ctk.CTkToplevel):
         self.resizable(False, False)
         self.iconbitmap("resources/logo.ico")
         self.lift()
+        self.users = {}
+        self.username_sent = False
 
         self.colors = ["#EBEBEB", "#FFFFFF", "#0078FF", "#4D4D4D", "#0063D2"]
 
@@ -42,6 +44,9 @@ class Chatroom(ctk.CTkToplevel):
 
         self.cuserspanel = ctk.CTkScrollableFrame(self, width=179, height=532, fg_color="#B9C3CD")
         self.cuserspanel.place(x=630, y=0)
+
+        self.users_header = ctk.CTkLabel(self.cuserspanel, text="Users:", font=("Roboto", 25, "bold"), text_color="white", fg_color="#B9C3CD")
+        self.users_header.pack(fill="x", pady=(10,5))
 
         self.cusersline = ctk.CTkFrame(self, width=15, height=560, fg_color="#839EB7")
         self.cusersline.place(x=630, y=-20)
@@ -65,19 +70,25 @@ class Chatroom(ctk.CTkToplevel):
 
         threading.Thread(target=lambda: clientmethod.start(ip, self.display_message, self.display_users), daemon=True).start()
 
-        self.titlebar = ctk.CTkLabel(self, text=f"{ip}'s Chatroom", font=("Roboto", 25, "bold"), text_color="white")
+        self.titlebar = ctk.CTkLabel(self, text=f"Anonymous's Chatroom", font=("Roboto", 25, "bold"), text_color="white")
         self.titlebar.place(x=180, y=10)
 
     def display_message(self, msg):
         self.after(0, lambda: self._display(msg))
 
     def display_users(self, users, conns):
-        first_user = next(iter(users.values()))
-        self.titlebar.configure(text=f"{first_user}'s Chatroom")
+        if users:
+            first_user = next(iter(users.values()))
+            self.titlebar.configure(text=f"{first_user}'s Chatroom")
+
+        self.users = users
+
+        for widget in self.cuserspanel.winfo_children()[1:]:
+            widget.destroy()
+
         for user in users.values():
-            print(user)
-       # label = ctk.CTkLabel(self.chat_frame, text=msg, anchor="w", justify="left", text_color="white")
-        #label.pack(fill="x", pady=2)
+            label = ctk.CTkLabel(self.cuserspanel, text=user, anchor="center", justify="center", text_color="white", fg_color="#9AAFC5", corner_radius=6, width=160, height=25)
+            label.pack(fill="x", pady=3, padx=10)
 
     def _display(self, msg):
         label = ctk.CTkLabel(self.chat_frame, text=msg, anchor="w", justify="left", text_color="white")
@@ -86,12 +97,16 @@ class Chatroom(ctk.CTkToplevel):
 
     def send(self):
         msg = self.entry.get().strip()
-        if not msg.startswith("!FILE"):
-            clientmethod.send_message(msg)
-            self.display_message(f"You: {msg}")  # show your own message immediately
-            self.entry.delete(0, "end")
-        else:
+        if msg.startswith("!FILE"):
             self.send_file()
+            return
+        if not self.username_sent:
+            self.username_sent = True
+        else:
+            if not msg.startswith("!ACCEPT"):
+                self.display_message(f"You: {msg}")  # show your own message immediately
+        clientmethod.send_message(msg)
+        self.entry.delete(0, "end")
 
     def send_file(self):
         filepath = filedialog.askopenfilename()

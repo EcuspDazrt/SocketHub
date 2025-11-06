@@ -6,9 +6,6 @@ import json
 
 HEADER = 64
 PORT = 5051
-# more efficient to use this to universally get the ip address of any computer
-SERVER = socket.gethostbyname(socket.gethostname())
-ADDR = (SERVER, PORT)
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
 CONNECTIONS_MESSAGE = "!CONNECTIONS"
@@ -17,14 +14,29 @@ FILE_MESSAGE = "!FILE"
 
 requestAccept = False
 
-
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server.bind(ADDR)
 clients = {}
 users = {}
 pending_files = {}
 num_pending_files = 0
 num_accepted = 0
+
+def init_server():
+    SERVER = socket.gethostbyname(socket.gethostname())
+    ADDR = (SERVER, PORT)
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(ADDR)
+    return server, SERVER, ADDR
+
+def start():
+    print("[STARTING] Server is starting...")
+    server, SERVER, ADDR = init_server()
+    server.listen()
+    print(f"[LISTENING] Server is listening on {SERVER}")
+    while True:
+        conn, addr = server.accept()
+        thread = threading.Thread(target=handle_client, args=(conn, addr))
+        thread.start()
+        print(f"[ACTIVE CONNECTIONS] {len(users)}")
 
 def sanitize_username(name: str) -> str:
     # No escape characters
@@ -77,7 +89,7 @@ def send_users(conn):
     for addr, conn in clients.items():
         safe_users = {f"{a[0]}:{a[1]}": u for a, u in users.items()}
         encoded_users = json.dumps(safe_users).encode(FORMAT)
-        header = f"USERS|{len(encoded_users)}|{getConnections()}||".encode(FORMAT)
+        header = f"USERS|{len(encoded_users)}|{len(users)}||".encode(FORMAT)
         conn.sendall(header + encoded_users)
 
 def handle_client(conn, addr):
@@ -88,6 +100,7 @@ def handle_client(conn, addr):
     connected = True
     while connected:
         try:
+            send_users(conn)
             header = read_header(conn)
             parts = header.split("|")
             data_type = parts[0]
@@ -102,7 +115,7 @@ def handle_client(conn, addr):
                     break
 
                 if message == CONNECTIONS_MESSAGE:
-                    conn.send((f"There are {getConnections()} connections.").encode(FORMAT))
+                    conn.send((f"There are {len(users)} connections.").encode(FORMAT))
 
                 if message.startswith(ACCEPT_MESSAGE):
                     # num_accepted += 1
@@ -124,7 +137,7 @@ def handle_client(conn, addr):
                         continue
 
                     sender, filepath, filesize = pending_files[filename]
-                    msg = f"Receiving '{filename}' ({filesize} bytes) from {sender}."
+                    msg = f"[RECEIVING FILE] '{filename}' ({filesize} bytes) from {sender}."
                     msg_data = msg.encode(FORMAT)
                     msg_header = f"MSG|{len(msg_data)}||".encode(FORMAT)
                     conn.sendall(msg_header + msg_data)
@@ -145,12 +158,14 @@ def handle_client(conn, addr):
                     broadcast(f"{user}: {message}", addr, user)
 
                 if not userSent:
+                    userSent = True
                     user = sanitize_username(message)
                     users[addr] = user
+
                     send_users(conn)
                     if not user.strip():
                         conn.close()
-                    userSent = True
+
             if data_type == "FILE":
                 filesize: int = int(parts[1])
                 filename = parts[2]
@@ -189,19 +204,6 @@ def handle_client(conn, addr):
         conn.close()
     except:
         pass
-    
-
-def start():
-    server.listen()
-    print(f"[LISTENING] Server is listening on {SERVER}")
-    while True:
-        conn, addr = server.accept()
-        thread = threading.Thread(target=handle_client, args=(conn, addr))
-        thread.start()
-        print(f"[ACTIVE CONNECTIONS] {getConnections()}")
-
-def getConnections():
-    return threading.active_count() - 1
 
 def receive_file(conn, filename, filesize, user, addr):
     filepath = f"server_files/{filename}"
@@ -224,5 +226,4 @@ def receive_file(conn, filename, filesize, user, addr):
         # num_pending_files += 1
 
 if __name__ == "__main__":
-    print("[STARTING] Server is starting...")
     start()

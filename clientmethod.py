@@ -1,8 +1,8 @@
 import socket
 import threading
-import traceback
 import os
 import json
+import traceback
 
 HEADER = 64
 PORT = 5051
@@ -12,9 +12,9 @@ DISCONNECT_MESSAGE = "!DISCONNECT"
 client = None
 _callback = None
 
-
 def start(ip, message_callback, display_users):
-    global client, _callback, _users
+    global client, _callback, _users, first_user
+    first_user = "Anonymous"
     _callback = message_callback
     _users = display_users
     addr = (ip, PORT)
@@ -24,7 +24,8 @@ def start(ip, message_callback, display_users):
     try:
         client.connect(addr)
         if _callback:
-            _callback(f"[CONNECTED] Connected to {ip}")
+            print(f"[CONNECTED] Connected to {first_user}'s chatroom")
+            _callback("Enter your username")
     except Exception as e:
         if _callback:
             _callback(f"[ERROR] Could not connect to {ip}: {e}")
@@ -56,6 +57,7 @@ def start(ip, message_callback, display_users):
                         connections = parts[2]
                         users = client.recv(length).decode(FORMAT)
                         users_dict = json.loads(users)
+                        first_user = iter(users_dict.values())
                         _users(users_dict, connections)
 
             except Exception as e:
@@ -92,7 +94,6 @@ def send_file(filepath):
             _callback(f"[SENT FILE] {filename}")
 
 def receive_file(client, filename, filesize, download_dir="downloads"):
-    _callback(f"[RECEIVING FILE] {filename}")
     os.makedirs(download_dir, exist_ok=True)
 
     safe_name = os.path.basename(filename)

@@ -1,11 +1,11 @@
 # SocketHub
 # - Secure user to user chatroom experience, featuring text and file sharing, without a limit.
-
+import socket
 import threading
 import customtkinter as ctk
 from PIL import Image
-import clientmethod
 import chatroom
+import server
 from customtkinter import CTkButton, CTkFrame
 
 # Launcher File
@@ -45,12 +45,11 @@ class App(ctk.CTk):
 
 
 
-        self.hostbutton = ctk.CTkButton(self.mainframe, width=187, height=37, text="Host a Server", font=("Arial", 14, "bold"), fg_color=self.colors[2], text_color=self.colors[1])
+        self.hostbutton = ctk.CTkButton(self.mainframe, width=187, height=37, text="Host a Server", font=("Arial", 14, "bold"), fg_color=self.colors[2], text_color=self.colors[1], command=lambda: self.start_server())
         self.hostbutton.place(relx=0.5, y=50, anchor="center")
         self.hostbutton.update_idletasks()
 
         self.outline(self.hostbutton)
-
 
         self.hostdescription = ctk.CTkLabel(self.mainframe, width=175, height=20, text="Host a chatroom on your device", font=("Arial", 11, "normal"), text_color=self.colors[3])
         self.hostdescription.place(relx=0.5, y=80, anchor="center")
@@ -64,21 +63,29 @@ class App(ctk.CTk):
 
         self.outline(self.joinbutton)
 
+        self.ipentry.bind("<Return>", lambda event: self.connect(self.ipentry.get()))
+
     def connect(self, ip):
         self.withdraw()
         chatroom.Chatroom(ip)
 
+    def start_server(self):
+        threading.Thread(target=server.start, daemon=True).start()
+        ip = socket.gethostbyname(socket.gethostname())
+        self.withdraw()
+        chatroom.Chatroom(ip)
 
     def outline(self, button):
         if button == self.mainframe:
             outline = ctk.CTkFrame(self, width=button.winfo_width() + 5, height=button.winfo_height() + 5,
                                    fg_color=self.colors[0])
-            print("hi")
         else:
             outline = ctk.CTkFrame(self.mainframe,width = button.winfo_width()+5, height = button.winfo_height()+5,
                                    fg_color=self.colors[4])
+
         outline.place(relx=0.5, y=button.winfo_y()+10, anchor="center")
         button.place_forget()
+
         if isinstance(button, CTkButton):
             button = CTkButton(outline, width=187, height=37, text=button._text, fg_color=button._fg_color,
                             text_color=self.colors[1], font=("Arial", 14, "bold"))
@@ -86,6 +93,8 @@ class App(ctk.CTk):
             button.lift()
             if button._text == "Join a Server":
                 button.configure(command=lambda: self.connect(self.ipentry.get()))
+            elif button._text == "Host a Server":
+                button.configure(command=self.start_server)
         else:
             button = CTkFrame(outline, width=433, height=222, fg_color=button._fg_color)
             button.place(relx=0.5, rely=0.5, anchor="center")

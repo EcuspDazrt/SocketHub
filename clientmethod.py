@@ -24,7 +24,7 @@ def start(ip, message_callback, display_users):
     try:
         client.connect(addr)
         if _callback:
-            print(f"[CONNECTED] Connected to {first_user}'s chatroom")
+            _callback("[CONNECTED]")
             _callback("Enter your username")
     except Exception as e:
         if _callback:
@@ -95,7 +95,6 @@ def send_file(filepath):
 
 def receive_file(client, filename, filesize, download_dir="downloads"):
     os.makedirs(download_dir, exist_ok=True)
-
     safe_name = os.path.basename(filename)
     filepath = os.path.join(download_dir, safe_name)
     try:
@@ -110,7 +109,7 @@ def receive_file(client, filename, filesize, download_dir="downloads"):
                     bytes_received += len(chunk)
 
         if _callback:
-            _callback(f"[DOWNLOAD COMPLETE] ({filesize} bytes) saved to {filepath}")
+            _callback(f"[DOWNLOAD COMPLETE] ({filesize} bytes) saved as {filename}")
     except Exception as e:
         if _callback:
             _callback(f"[ERROR RECEIVING FILE] {e}")

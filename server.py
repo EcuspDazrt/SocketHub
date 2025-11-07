@@ -17,8 +17,6 @@ requestAccept = False
 clients = {}
 users = {}
 pending_files = {}
-num_pending_files = 0
-num_accepted = 0
 
 def init_server():
     SERVER = socket.gethostbyname(socket.gethostname())
@@ -65,25 +63,17 @@ def broadcast(message, sender_addr, user):
                 header = f"MSG|{len(message)}||".encode(FORMAT)
                 conn.sendall(header + data)
             except:
-                conn.close()
-                del clients[addr]
-                del users[addr]
-                send_users(conn)
-                print(f"{user} disconnected")
+                handle_disconnect(conn, addr, user)
 
-def broadcast_file(filename, filesize, f, user, sender_addr):
-    # num_pending_files += 1
+def broadcast_file(filename, user, sender_addr):
     for addr, conn in clients.items():
         if addr != sender_addr:
             try:
-                message = f"{user} is trying to share {filename} with you. \nEnter '{ACCEPT_MESSAGE} <filename>' to receive the file".encode(FORMAT)
+                message = f"{user} is trying to share {filename} with you. \nPress the button to receive the file".encode(FORMAT)
                 header = f"MSG|{len(message)}||".encode(FORMAT)
                 conn.send(header + message)
             except:
-                conn.close()
-                del clients[addr]
-                del users[addr]
-                send_users(conn)
+                handle_disconnect(conn, addr, user)
 
 def send_users(conn):
     for addr, conn in clients.items():
@@ -111,6 +101,7 @@ def handle_client(conn, addr):
                 
                 if message == DISCONNECT_MESSAGE:
                     print(f"{user} disconnected.")
+                    handle_disconnect(conn, addr, user)
                     connected = False
                     break
 
@@ -118,9 +109,6 @@ def handle_client(conn, addr):
                     conn.send((f"There are {len(users)} connections.").encode(FORMAT))
 
                 if message.startswith(ACCEPT_MESSAGE):
-                    # num_accepted += 1
-                    # if num_accepted <= (num_pending_files - 1) * getConnections():
-                    #     del pending_files[0]
 
                     parts = message.split(" ")
                     if len(parts) < 2:
@@ -142,17 +130,18 @@ def handle_client(conn, addr):
                     msg_header = f"MSG|{len(msg_data)}||".encode(FORMAT)
                     conn.sendall(msg_header + msg_data)
 
-                    header = f"FILE|{filesize}|{filename}||".encode(FORMAT)
+                    fileName = filepath.split('\\')
+
+                    header = f"FILE|{filesize}|{fileName[1]}||".encode(FORMAT)
                     conn.sendall(header)
 
-                    with open (f"server_files/{filename}", "rb") as f:
+                    with open (filepath, "rb") as f:
                         while True:
                             bytes_read: bytes = f.read(1024)
                             if not bytes_read:
                                 break
                             conn.sendall(bytes_read)
 
-                    # print(f"Sent '{filename}' to {addr}")
                 if userSent:
                     print(f"[{user}] {message}")
                     broadcast(f"{user}: {message}", addr, user)
@@ -164,14 +153,15 @@ def handle_client(conn, addr):
 
                     send_users(conn)
                     if not user.strip():
-                        conn.close()
+                        handle_disconnect(conn, addr, user)
 
             if data_type == "FILE":
                 filesize: int = int(parts[1])
                 filename = parts[2]
                 
                 os.makedirs("server_files", exist_ok=True)
-                safe_name = os.path.basename(filename)
+                safe_name = os.path.basename(f"{user}_{filename}")
+                print(safe_name)
                 filepath = os.path.join("server_files", safe_name)
 
                 print(f"[RECEIVING FILE] {filename} ({filesize} bytes) from {user}")
@@ -188,7 +178,7 @@ def handle_client(conn, addr):
                 print(f"[SAVED] {filepath} from {user}: {filename} ({filesize} bytes)")
 
                 pending_files[filename] = (user, filepath, filesize)
-                broadcast_file(filename, filesize, f, user, addr)
+                broadcast_file(filename, user, addr)
         except ConnectionResetError:
             print(f"{user} disconnected.")
             break
@@ -201,29 +191,20 @@ def handle_client(conn, addr):
         del users[addr]
         send_users(conn)
     try:
-        conn.close()
+        handle_disconnect(conn, addr, user)
     except:
         pass
 
-def receive_file(conn, filename, filesize, user, addr):
-    filepath = f"server_files/{filename}"
-    print(filepath)
-    os.makedirs("server_files", exist_ok=True)
+def handle_disconnect(conn, addr, user):
+    del clients[addr]
+    del users[addr]
+    send_users(conn)
+    conn.close()
 
-    safe_name = os.path.basename(filename)
-    filepath = os.path.join("server_files", safe_name)
-    with open(filepath, "wb") as f:
-        bytes_read = 0
-        while bytes_read < filesize:
-            chunk = conn.recv(1024)
-            if not chunk:
-                break
-            f.write(chunk)
-            bytes_read += len(chunk)
-        print(f"Recieved file from {user}: {filename}")
-        pending_files[filename] = (user, filepath, filesize)
-        broadcast_file(filename, filesize, f, user, addr)
-        # num_pending_files += 1
+    folder = "server_files"
+    for f in os.listdir(folder):
+        if f.startswith(user + "_"):
+            os.remove(os.path.join(folder, f))
 
 if __name__ == "__main__":
     start()

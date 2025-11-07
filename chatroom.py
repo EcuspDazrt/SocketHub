@@ -28,6 +28,7 @@ class Chatroom(ctk.CTkToplevel):
         self.lift()
         self.users = {}
         self.username_sent = False
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.colors = ["#EBEBEB", "#FFFFFF", "#0078FF", "#4D4D4D", "#0063D2"]
 
@@ -73,6 +74,16 @@ class Chatroom(ctk.CTkToplevel):
         self.titlebar = ctk.CTkLabel(self, text=f"Anonymous's Chatroom", font=("Roboto", 25, "bold"), text_color="white")
         self.titlebar.place(x=180, y=10)
 
+    def on_close(self):
+        try:
+            # Send disconnect message to the server
+            clientmethod.send_message("!DISCONNECT")
+        except Exception as e:
+            print(f"[ERROR] Could not send disconnect: {e}")
+        finally:
+            # Then destroy the window
+            self.destroy()
+
     def display_message(self, msg):
         self.after(0, lambda: self._display(msg))
 
@@ -91,9 +102,28 @@ class Chatroom(ctk.CTkToplevel):
             label.pack(fill="x", pady=3, padx=10)
 
     def _display(self, msg):
-        label = ctk.CTkLabel(self.chat_frame, text=msg, anchor="w", justify="left", text_color="white")
-        label.pack(fill="x", pady=2)
+        frame = ctk.CTkFrame(self.chat_frame, fg_color="transparent")
+        frame.pack(fill="x", pady=(1, 0), anchor="w")
+
+        label = ctk.CTkLabel(frame, text=msg, anchor="w", justify="left", text_color="white", wraplength=480)
+        label.pack(fill="x", padx=(5,5), pady=0)
+
+        if "is trying to share" in msg and "Press the button" in msg:
+            import re
+            match = re.search(r"share\s+(.+?)\s+with you", msg)
+            if match:
+                filename = match.group(1).strip()
+
+                accept_btn = ctk.CTkButton(frame, text="Accept", width=70, height=25, fg_color="#4CAF50")
+                accept_btn.configure(command=lambda f=filename, b=accept_btn: self.accept_file(f, b))
+                accept_btn.pack(side="right", padx=(10, 10))
+
         self.chat_frame._parent_canvas.yview_moveto(1)  # scroll to bottom
+
+
+    def accept_file(self, filename, button):
+        clientmethod.send_message(f"!ACCEPT {filename}")
+        button.configure(state="disabled", text="Accepted")
 
     def send(self):
         msg = self.entry.get().strip()

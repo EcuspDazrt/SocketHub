@@ -4,7 +4,6 @@ import socket
 import threading
 import customtkinter as ctk
 from PIL import Image
-import chatroom
 import server
 from customtkinter import CTkButton, CTkFrame
 
@@ -15,8 +14,10 @@ ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
 class App(ctk.CTk):
+    instance = None
 
     def __init__(self):
+        App.instance = self
         super().__init__()
         self.title("SocketHub Client Launcher")
         self.geometry("803x532")
@@ -66,14 +67,16 @@ class App(ctk.CTk):
         self.ipentry.bind("<Return>", lambda event: self.connect(self.ipentry.get()))
 
     def connect(self, ip):
+        import chatroom
         self.withdraw()
-        chatroom.Chatroom(ip)
+        chatroom.Chatroom(self, ip, is_host=False)
 
     def start_server(self):
         threading.Thread(target=server.start, daemon=True).start()
         ip = socket.gethostbyname(socket.gethostname())
+        import chatroom
         self.withdraw()
-        chatroom.Chatroom(ip)
+        chatroom.Chatroom(self, ip, is_host=True)
 
     def outline(self, button):
         if button == self.mainframe:

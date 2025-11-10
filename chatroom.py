@@ -4,6 +4,7 @@
 # - Chatroom
 
 import threading
+import time
 from tkinter import filedialog
 
 import customtkinter as ctk
@@ -18,8 +19,10 @@ ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
 class Chatroom(ctk.CTkToplevel):
-    def __init__(self, ip):
-        super().__init__()
+    def __init__(self,parent,ip, is_host=False):
+        super().__init__(parent)
+        self.is_host = is_host
+        self.parent = parent
         self.title("SocketHub Chatroom")
         self.geometry("803x532")
         self.configure(fg_color="#95B3CF")
@@ -83,6 +86,18 @@ class Chatroom(ctk.CTkToplevel):
         finally:
             # Then destroy the window
             self.destroy()
+            if self.is_host:
+                try:
+                    import server
+                    server.stop()
+                    time.sleep(0.2)
+                except Exception as e:
+                    print("[ERROR STOPPING SERVER]", e)
+            try:
+                if self.parent is not None:
+                    self.parent.deiconify()
+            except Exception as e:
+                print(f"[ERROR] Could not deiconify the chatroom: {e}")
 
     def display_message(self, msg):
         self.after(0, lambda: self._display(msg))
@@ -95,7 +110,8 @@ class Chatroom(ctk.CTkToplevel):
         self.users = users
 
         for widget in self.cuserspanel.winfo_children()[1:]:
-            widget.destroy()
+            if widget.winfo_exists():
+                widget.destroy()
 
         for user in users.values():
             label = ctk.CTkLabel(self.cuserspanel, text=user, anchor="center", justify="center", text_color="white", fg_color="#9AAFC5", corner_radius=6, width=160, height=25)

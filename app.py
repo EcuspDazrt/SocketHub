@@ -72,6 +72,7 @@ class App(ctk.CTk):
         chatroom.Chatroom(self, ip, is_host=False)
 
     def start_server(self):
+        threading.Thread(target=server.start, daemon=True).start()
         ip = socket.gethostbyname(socket.gethostname())
         import chatroom
         self.withdraw()

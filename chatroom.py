@@ -35,6 +35,18 @@ class Chatroom(ctk.CTkToplevel):
 
         self.colors = ["#EBEBEB", "#FFFFFF", "#0078FF", "#4D4D4D", "#0063D2"]
 
+        if self.is_host:
+            import server
+
+            if getattr(server, "server", None):
+                server.stop()
+                for t in list(server.server_threads):
+                    if t.is_alive():
+                        t.join(timeout=1.0)
+
+            self.server_thread = threading.Thread(target=server.start, daemon=True)
+            self.server_thread.start()
+
         long_logo = ctk.CTkImage(
             light_image=Image.open("resources/chatroomtitle.png"),
             dark_image=Image.open("resources/chatroomtitle.png"),
@@ -90,7 +102,9 @@ class Chatroom(ctk.CTkToplevel):
                 try:
                     import server
                     server.stop()
-                    time.sleep(0.2)
+
+                    if hasattr(self, "server_thread"):
+                        self.server_thread.join(timeout=2.0)
                 except Exception as e:
                     print("[ERROR STOPPING SERVER]", e)
             try:
@@ -105,6 +119,9 @@ class Chatroom(ctk.CTkToplevel):
     def display_users(self, users, conns):
         if users:
             first_user = next(iter(users.values()))
+            self.titlebar.configure(text=f"{first_user}'s Chatroom")
+        else:
+            first_user = "Anonymous"
             self.titlebar.configure(text=f"{first_user}'s Chatroom")
 
         self.users = users

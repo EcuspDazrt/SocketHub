@@ -13,8 +13,8 @@ client = None
 _callback = None
 
 def start(ip, message_callback, display_users):
-    global client, _callback, _users, first_user
-    first_user = "Anonymous"
+    global client, _callback, _users
+    # first_user = "Anonymous"
     _callback = message_callback
     _users = display_users
     addr = (ip, PORT)
@@ -57,7 +57,7 @@ def start(ip, message_callback, display_users):
                         connections = parts[2]
                         users = client.recv(length).decode(FORMAT)
                         users_dict = json.loads(users)
-                        first_user = iter(users_dict.values())
+                        # first_user = iter(users_dict.values())
                         _users(users_dict, connections)
 
             except Exception as e:
@@ -66,6 +66,8 @@ def start(ip, message_callback, display_users):
                 try:
                     client.close()
                 except:
+                    pass
+                finally:
                     pass
                 break
 

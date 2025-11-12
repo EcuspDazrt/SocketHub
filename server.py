@@ -3,6 +3,7 @@ import threading
 import os
 import re
 import json
+import time
 
 HEADER = 64
 PORT = 5051
@@ -12,75 +13,96 @@ CONNECTIONS_MESSAGE = "!CONNECTIONS"
 ACCEPT_MESSAGE = "!ACCEPT"
 FILE_MESSAGE = "!FILE"
 
-requestAccept = False
 running = True
 server = None
+server_threads = []
 
 clients = {}
 users = {}
 pending_files = {}
-clients_lock = threading.Lock()
-users_lock = threading.Lock()
+
+_clients_lock = threading.Lock()
+_users_lock = threading.Lock()
+_pending_lock = threading.Lock()
 
 def init_server():
-    global server
-    SERVER = socket.gethostbyname(socket.gethostname())
-    ADDR = (SERVER, PORT)
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # allow reuse
+    SERVER = socket.gethostbyname(socket.gethostname())
+    ADDR = (SERVER, PORT)
     server.bind(ADDR)
     return server, SERVER, ADDR
 
 def start():
-    global running, server
+    global running, server, server_threads
+    running = True
     print("[STARTING] Server is starting...")
-    server, SERVER, ADDR = init_server()
-    server.listen()
+
+    srv, SERVER, ADDR = init_server()
+    server = srv
+    srv.listen()
+    srv.settimeout(1.0)
     print(f"[LISTENING] Server is listening on {SERVER}")
 
-    server.settimeout(1.0)
-    while running:
+    accept_thread = threading.Thread(target=accept_clients, daemon=True)
+    # print(f"[ACTIVE CONNECTIONS] {len(users)}")
+    server_threads.append(accept_thread)
+    accept_thread.start()
+
+def accept_clients():
+    global running
+    while running and server:
         try:
             conn, addr = server.accept()
-            thread = threading.Thread(target=handle_client, args=(conn, addr))
+            thread = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
+            server_threads.append(thread)
             thread.start()
             print(f"[ACTIVE CONNECTIONS] {len(users)}")
         except socket.timeout:
             continue
-        except OSError:
-            server.close()
+        except OSError as e:
+            if running:
+                print(e)
             break
+
+def stop():
+    global running, server
+    running = False
 
     if server:
         try:
             server.close()
         except:
-            pass
-    server = None
-    print("[SERVER STOPPED]")
+            print("server will not close")
 
+    for t in server_threads:
+        if t.is_alive():
+            t.join(timeout=1.0)
+    server_threads.clear()
 
-def stop():
-    global running, server
-    with clients_lock:
-        for conn in clients.values():
+    with _clients_lock:
+        for conn in list(clients.values()):
+            try:
+                conn.shutdown(socket.SHUT_RDWR)
+            except:
+                print("connection would not shutdown")
             try:
                 conn.close()
             except:
-                pass
-    running = False
-    try:
-        if server:
-            server.close()
-    except:
-        pass
+                print("connection will not close")
+        clients.clear()
+
+        with _users_lock:
+            users.clear()
+        with _pending_lock:
+            pending_files.clear()
+
+    server = None
+    print("[SERVER] Stopped cleanly")
 
 def sanitize_username(name: str) -> str:
-    # No escape characters
     name = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', name)
-    # No control characters (ASCII < 32 or DEL = 127)
     name = ''.join(ch for ch in name if 32 <= ord(ch) <= 126)
-    # limit length
     return name[:20]
 
 def read_header(conn):
@@ -95,7 +117,7 @@ def read_header(conn):
     return header
 
 def broadcast(message, sender_addr, user):
-    with clients_lock:
+    with _clients_lock:
         for addr, conn in list(clients.items()):
             if addr != sender_addr:
                 try:
@@ -103,10 +125,10 @@ def broadcast(message, sender_addr, user):
                     header = f"MSG|{len(message)}||".encode(FORMAT)
                     conn.sendall(header + data)
                 except:
-                    handle_disconnect(conn, addr, user)
+                    handle_disconnect(addr)
 
 def broadcast_file(fname, user, sender_addr):
-    with clients_lock:
+    with _clients_lock:
         for addr, conn in list(clients.items()):
             if addr != sender_addr:
                 try:
@@ -114,10 +136,10 @@ def broadcast_file(fname, user, sender_addr):
                     header = f"MSG|{len(message)}||".encode(FORMAT)
                     conn.send(header + message)
                 except:
-                    handle_disconnect(conn, addr, user)
+                    handle_disconnect(addr)
 
 def send_users(conn):
-    with clients_lock:
+    with _clients_lock:
         for addr, conn in list(clients.items()):
             safe_users = {f"{a[0]}:{a[1]}": u for a, u in users.items()}
             encoded_users = json.dumps(safe_users).encode(FORMAT)
@@ -129,13 +151,13 @@ def send_users(conn):
 
 def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
-    with clients_lock:
+    with _clients_lock:
         clients[addr] = conn
     user = " "
     userSent = False
-    connected = True
+
     try:
-        while connected:
+        while running:
                 send_users(conn)
                 header = read_header(conn)
                 parts = header.split("|")
@@ -147,8 +169,6 @@ def handle_client(conn, addr):
 
                     if message == DISCONNECT_MESSAGE:
                         print(f"{user} disconnected.")
-                        handle_disconnect(conn, addr, user)
-                        connected = False
                         break
 
                     if message == CONNECTIONS_MESSAGE:
@@ -213,12 +233,12 @@ def handle_client(conn, addr):
                     if not userSent:
                         userSent = True
                         user = sanitize_username(message)
-                        with users_lock:
+                        with _users_lock:
                             users[addr] = user
 
                         send_users(conn)
                         if not user.strip():
-                            handle_disconnect(conn, addr, user)
+                            handle_disconnect(addr)
 
                 if data_type == "FILE":
                     fsize: int = int(parts[1])
@@ -249,26 +269,35 @@ def handle_client(conn, addr):
     except Exception as e:
         print(f"[ERROR] {addr}: {e}")
     finally:
-        handle_disconnect(conn, addr, user)
+        handle_disconnect(addr)
 
-def handle_disconnect(conn, addr, user):
-    with clients_lock:
-        clients.pop(addr, None)
-    with users_lock:
+def handle_disconnect(addr):
+    with _clients_lock:
+        conn = clients.pop(addr, None)
+    with _users_lock:
         users.pop(addr, None)
     try:
-        send_users(conn)
+        send_users()
     except:
         pass
-    try:
-        conn.close()
-    except:
-        pass
-
-    folder = "server_files"
-    for f in os.listdir(folder):
-        if f.startswith(user + "_"):
-            os.remove(os.path.join(folder, f))
+    if conn:
+        try:
+            conn.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        try:
+            conn.close()
+        except:
+            pass
+    user_removed = users.pop(addr, None)
+    if user_removed:
+        folder = "server_files"
+        for f in os.listdir(folder):
+            if f.startswith(users.get(addr, "") + "_"):
+                try:
+                    os.remove(os.path.join(folder, f))
+                except:
+                    pass
 
 if __name__ == "__main__":
     start()

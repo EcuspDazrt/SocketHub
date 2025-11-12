@@ -219,6 +219,18 @@ def handle_client(conn, addr):
                         send_users(conn)
                         if not user.strip():
                             handle_disconnect(conn, addr, user)
+                if data_type == "THUMB":
+                    length = int(parts[1])
+                    filename = parts[2]
+                    thumb_data = conn.recv(length)
+                    with clients_lock:
+                        for addr2, conn2 in clients.items():
+                            if addr2 != addr:
+                                try:
+                                    header = f"THUMB|{length}|{filename}||".encode(FORMAT)
+                                    conn2.sendall(header + thumb_data)
+                                except:
+                                    pass
 
                 if data_type == "FILE":
                     fsize: int = int(parts[1])

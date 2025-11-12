@@ -1,6 +1,9 @@
 import socket
 import threading
 import os
+from io import BytesIO
+import base64
+from PIL import Image
 import json
 import traceback
 
@@ -50,6 +53,20 @@ def start(ip, message_callback, display_users):
                     case "MSG":
                         message = client.recv(length).decode(FORMAT)
                         _callback(message)
+                    case "THUMB":
+                        filename = parts[2]
+                        data = client.recv(length)
+                        try:
+                            from base64 import b64decode
+                            thumb_bytes = b64decode(data)
+                            thumb_dir = "thumbs"
+                            os.makedirs(thumb_dir, exist_ok=True)
+                            thumb_path = os.path.join(thumb_dir, filename + "_thumb.png")
+                            with open(thumb_path, "wb") as f:
+                                f.write(thumb_bytes)
+                            _callback(f"[THUMBNAIL] {filename}|{thumb_path}")
+                        except Exception as e:
+                            _callback(f"[ERROR] Thumbnail failed: {e}")
                     case "FILE":
                         filename = parts[2]
                         receive_file(client, filename, length)
@@ -81,6 +98,22 @@ def send_file(filepath):
     if client and os.path.exists(filepath):
         filename = os.path.basename(filepath)
         filesize = os.path.getsize(filepath)
+
+        ext = os.path.splitext(filename)[1].lower()
+        if ext in [".jpg", ".jpeg", ".png", ".gif", ".bmp"]:
+            try:
+                img = Image.open(filepath)
+                img.thumbnail((150, 150))
+                buffer = BytesIO()
+                img.save(buffer, format="PNG")
+                thumb_data = base64.b64encode(buffer.getvalue())
+                header = f"THUMB|{len(thumb_data)}|{filename}||".encode(FORMAT)
+                client.sendall(header + thumb_data)
+            except Exception as e:
+                if _callback:
+                    _callback(f"[ERROR] Preview creation failed: {e}")
+
+
         header = f"FILE|{filesize}|{filename}||".encode(FORMAT)
         client.sendall(header)
 

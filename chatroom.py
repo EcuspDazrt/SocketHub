@@ -5,6 +5,7 @@
 
 import threading
 import time
+from logging import exception
 from tkinter import filedialog
 
 import customtkinter as ctk
@@ -118,6 +119,23 @@ class Chatroom(ctk.CTkToplevel):
             label.pack(fill="x", pady=3, padx=10)
 
     def _display(self, msg):
+        if msg.startswith("[THUMBNAIL]"):
+            try:
+                parts = msg.replace("[THUMBNAIL] ", "").split("|")
+                filename, thumb_path = parts[0], parts[1]
+                frame = ctk.CTkFrame(self.chat_frame, fg_color="transparent")
+                frame.pack(fill="x", pady=(1, 0), anchor="w")
+
+                from PIL import Image
+                img = Image.open(thumb_path)
+                ctk_img = ctk.CTkImage(light_image=img, size=(120, 120))
+                img_label = ctk.CTkLabel(frame, image=ctk_img, text="")
+                img_label.image = ctk_img
+                img_label.pack(anchor="w", padx=5, pady=(3, 3))
+            except Exception as e:
+                print(f"[ERROR showing thumbnail] {e}")
+            return
+
         frame = ctk.CTkFrame(self.chat_frame, fg_color="transparent")
         frame.pack(fill="x", pady=(1, 0), anchor="w")
 

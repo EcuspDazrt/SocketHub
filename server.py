@@ -83,15 +83,13 @@ def sanitize_username(name: str) -> str:
     # limit length
     return name[:20]
 
-def read_header(conn):
-    data = b""
-    while b"||" not in data:
-        chunk = conn.recv(1)
-        if not chunk:
-            raise ConnectionResetError("Connection closed while reading header")
-        data += chunk
-    # Split off the '||'
-    header = data[:-2].decode('utf-8')
+def read_header(h):
+    data = ""
+    for i in range(HEADER):
+        if " " not in data:
+            chunk = h[i]
+            data += chunk
+    header = data[:-1]
     return header
 
 def broadcast(message, sender_addr, user):
@@ -100,7 +98,8 @@ def broadcast(message, sender_addr, user):
             if addr != sender_addr:
                 try:
                     data = message.encode(FORMAT)
-                    header = f"MSG|{len(message)}||".encode(FORMAT)
+                    header = f"MSG|{len(message)}".encode(FORMAT)
+                    header = pad_header(header)
                     conn.sendall(header + data)
                 except:
                     handle_disconnect(conn, addr, user)
@@ -111,7 +110,8 @@ def broadcast_file(fname, user, sender_addr):
             if addr != sender_addr:
                 try:
                     message = f"{user} is trying to share {fname} with you. \nPress the button to receive the file".encode(FORMAT)
-                    header = f"MSG|{len(message)}||".encode(FORMAT)
+                    header = f"MSG|{len(message)}".encode(FORMAT)
+                    header = pad_header(header)
                     conn.send(header + message)
                 except:
                     handle_disconnect(conn, addr, user)
@@ -121,11 +121,18 @@ def send_users(conn):
         for addr, conn in list(clients.items()):
             safe_users = {f"{a[0]}:{a[1]}": u for a, u in users.items()}
             encoded_users = json.dumps(safe_users).encode(FORMAT)
-            header = f"USERS|{len(encoded_users)}|{len(users)}||".encode(FORMAT)
+            header = f"USERS|{len(encoded_users)}|{len(users)}".encode(FORMAT)
+            header = pad_header(header)
             try:
                 conn.sendall(header + encoded_users)
             except:
                 pass
+
+
+def pad_header(header):
+    if len(header) < HEADER:
+        header += b" " * (HEADER - len(header))
+    return header
 
 def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
@@ -137,7 +144,8 @@ def handle_client(conn, addr):
     try:
         while connected:
                 send_users(conn)
-                header = read_header(conn)
+                h = conn.recv(HEADER)
+                header = read_header(h.decode(FORMAT))
                 parts = header.split("|")
                 data_type = parts[0]
 
@@ -158,11 +166,11 @@ def handle_client(conn, addr):
                             pass
 
                     if message.startswith(ACCEPT_MESSAGE):
-
                         parts = message.split(" ")
                         if len(parts) < 2:
                             receive_message = f"Usage: {ACCEPT_MESSAGE} <filename>".encode(FORMAT)
-                            receive_header = f"MSG|{len(receive_message)}||".encode(FORMAT)
+                            receive_header = f"MSG|{len(receive_message)}".encode(FORMAT)
+                            receive_header = pad_header(receive_header)
                             try:
                                 conn.sendall(receive_header + receive_message)
                             except:
@@ -172,7 +180,8 @@ def handle_client(conn, addr):
                         fname = parts[1]
                         if fname not in pending_files:
                             interuption_message = "That file is no longer available or does not exist.".encode(FORMAT)
-                            interuption_header = f"MSG|{len(interuption_message)}||".encode(FORMAT)
+                            interuption_header = f"MSG|{len(interuption_message)}".encode(FORMAT)
+                            interuption_header = pad_header(interuption_header)
                             try:
                                 conn.sendall(interuption_header + interuption_message)
                             except:
@@ -182,7 +191,8 @@ def handle_client(conn, addr):
                         sender, fpath, fsize = pending_files[fname]
                         msg = f"[RECEIVING FILE] '{fname}' ({fsize} bytes) from {sender}."
                         msg_data = msg.encode(FORMAT)
-                        msg_header = f"MSG|{len(msg_data)}||".encode(FORMAT)
+                        msg_header = f"MSG|{len(msg_data)}".encode(FORMAT)
+                        msg_header = pad_header(msg_header)
                         try:
                             conn.sendall(msg_header + msg_data)
                         except:
@@ -190,7 +200,8 @@ def handle_client(conn, addr):
 
                         fileName = fpath.split('\\')
 
-                        header = f"FILE|{fsize}|{fileName[1]}||".encode(FORMAT)
+                        header = f"FILE|{fsize}|{fileName[1]}".encode(FORMAT)
+                        header = pad_header(header)
                         try:
                             conn.sendall(header)
                         except:
@@ -205,6 +216,7 @@ def handle_client(conn, addr):
                                     conn.sendall(bytes_read)
                                 except:
                                     pass
+                        continue
 
                     if userSent:
                         print(f"[{user}] {message}")
@@ -227,7 +239,8 @@ def handle_client(conn, addr):
                         for addr2, conn2 in clients.items():
                             if addr2 != addr:
                                 try:
-                                    header = f"THUMB|{length}|{filename}||".encode(FORMAT)
+                                    header = f"THUMB|{length}|{filename}".encode(FORMAT)
+                                    header = pad_header(header)
                                     conn2.sendall(header + thumb_data)
                                 except:
                                     pass
@@ -276,6 +289,7 @@ def handle_disconnect(conn, addr, user):
         conn.close()
     except:
         pass
+
 
     folder = "server_files"
     if os.path.isdir(folder):

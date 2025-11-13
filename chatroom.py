@@ -144,26 +144,27 @@ class Chatroom(ctk.CTkToplevel):
             except Exception as e:
                 print(f"[ERROR showing thumbnail] {e}")
             return
+        if self.chat_frame:
 
-        frame = ctk.CTkFrame(self.chat_frame, fg_color="transparent")
-        frame.pack(fill="x", pady=(1, 0), anchor="w")
+            frame = ctk.CTkFrame(self.chat_frame, fg_color="transparent")
+            frame.pack(fill="x", pady=(1, 0), anchor="w")
 
-        if frame:
+            if frame:
 
-            label = ctk.CTkLabel(frame, text=msg, anchor="w", justify="left", text_color="white", wraplength=480)
-            label.pack(fill="x", padx=(5,5), pady=0)
+                label = ctk.CTkLabel(frame, text=msg, anchor="w", justify="left", text_color="white", wraplength=480)
+                label.pack(fill="x", padx=(5,5), pady=0)
 
-            if "is trying to share" in msg and "Press the button" in msg:
-                import re
-                match = re.search(r"share\s+(.+?)\s+with you", msg)
-                if match:
-                    filename = match.group(1).strip()
+                if "is trying to share" in msg and "Press the button" in msg:
+                    import re
+                    match = re.search(r"share\s+(.+?)\s+with you", msg)
+                    if match:
+                        filename = match.group(1).strip()
 
-                    accept_btn = ctk.CTkButton(frame, text="Accept", width=70, height=25, fg_color="#4CAF50")
-                    accept_btn.configure(command=lambda f=filename, b=accept_btn: self.accept_file(f, b))
-                    accept_btn.pack(side="right", padx=(10, 10))
+                        accept_btn = ctk.CTkButton(frame, text="Accept", width=70, height=25, fg_color="#4CAF50")
+                        accept_btn.configure(command=lambda f=filename, b=accept_btn: self.accept_file(f, b))
+                        accept_btn.pack(side="right", padx=(10, 10))
 
-        self.chat_frame._parent_canvas.yview_moveto(1)  # scroll to bottom
+            self.chat_frame._parent_canvas.yview_moveto(1)  # scroll to bottom
 
 
     def accept_file(self, filename, button):

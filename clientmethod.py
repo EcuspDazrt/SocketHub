@@ -35,16 +35,20 @@ def start(ip, message_callback, display_users):
             _callback(f"[ERROR] Could not connect to {ip}: {e}")
         return
 
+    def read_header(h):
+        data = ""
+        for i in range(HEADER):
+            if " " not in data:
+                chunk = h[i]
+                data += chunk
+        header = data[:-1]
+        return header
+
     def receive():
         while True:
             try:
-                header = b""
-                while not header.endswith(b"||"):
-                    chunk = client.recv(1)
-                    if chunk:
-                        header += chunk
-
-                header = header[:-2].decode(FORMAT)
+                h = client.recv(HEADER)
+                header = read_header(h.decode(FORMAT))
                 parts = header.split("|")
 
                 data_type = parts[0]
@@ -60,7 +64,7 @@ def start(ip, message_callback, display_users):
                         try:
                             from base64 import b64decode
                             thumb_bytes = b64decode(data)
-                            thumb_dir = "thumbs"
+                            thumb_dir = "downloads"
                             os.makedirs(thumb_dir, exist_ok=True)
                             thumb_path = os.path.join(thumb_dir, filename + "_thumb.png")
                             with open(thumb_path, "wb") as f:
@@ -89,10 +93,16 @@ def start(ip, message_callback, display_users):
 
     threading.Thread(target=receive, daemon=True).start()
 
+def pad_header(header):
+    if len(header) < HEADER:
+        header += b" " * (HEADER - len(header))
+    return header
+
 def send_message(msg):
     if client:
         msg_bytes = msg.encode(FORMAT)
-        header = f"MSG|{len(msg_bytes)}||".encode(FORMAT)
+        header = f"MSG|{len(msg_bytes)}".encode(FORMAT)
+        header = pad_header(header)
         client.sendall(header + msg_bytes)
 
 def send_file(filepath):
@@ -108,14 +118,16 @@ def send_file(filepath):
                 buffer = BytesIO()
                 img.save(buffer, format="PNG")
                 thumb_data = base64.b64encode(buffer.getvalue())
-                header = f"THUMB|{len(thumb_data)}|{filename}||".encode(FORMAT)
+                header = f"THUMB|{len(thumb_data)}|{filename}".encode(FORMAT)
+                header = pad_header(header)
                 client.sendall(header + thumb_data)
             except Exception as e:
                 if _callback:
                     _callback(f"[ERROR] Preview creation failed: {e}")
 
 
-        header = f"FILE|{filesize}|{filename}||".encode(FORMAT)
+        header = f"FILE|{filesize}|{filename}".encode(FORMAT)
+        header = pad_header(header)
         client.sendall(header)
 
         with open(filepath, "rb") as f:

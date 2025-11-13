@@ -278,9 +278,10 @@ def handle_disconnect(conn, addr, user):
         pass
 
     folder = "server_files"
-    for f in os.listdir(folder):
-        if f.startswith(user + "_"):
-            os.remove(os.path.join(folder, f))
+    if os.path.isdir(folder):
+        for f in os.listdir(folder):
+            if f.startswith(user + "_"):
+                os.remove(os.path.join(folder, f))
 
 if __name__ == "__main__":
     start()

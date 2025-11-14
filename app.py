@@ -13,12 +13,21 @@ from customtkinter import CTkButton, CTkFrame
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
+def main():
+    app_instance = App()
+    app_instance.mainloop()
+
+    if getattr(app_instance, "is_hosting", False):
+        return 5
+    return 0
+
 class App(ctk.CTk):
     instance = None
 
     def __init__(self):
         App.instance = self
         super().__init__()
+        self.is_hosting = False
         self.title("SocketHub Client Launcher")
         self.geometry("803x532")
         self.configure(fg_color="#95B3CF")
@@ -72,11 +81,19 @@ class App(ctk.CTk):
         chatroom.Chatroom(self, ip, is_host=False)
 
     def start_server(self):
+        self.is_hosting = True
         threading.Thread(target=server.start, daemon=True).start()
         ip = socket.gethostbyname(socket.gethostname())
         import chatroom
         self.withdraw()
         chatroom.Chatroom(self, ip, is_host=True)
+
+    def on_host_exit(self):
+        self.is_hosting = True
+        self.destroy()
+
+    def close_chatroom(self):
+        App.instance.on_host_exit()
 
     def outline(self, button):
         if button == self.mainframe:
@@ -105,5 +122,5 @@ class App(ctk.CTk):
         button.update_idletasks()
 
 if __name__ == "__main__":
-    app = App()
-    app.mainloop()
+    import sys
+    sys.exit(main())

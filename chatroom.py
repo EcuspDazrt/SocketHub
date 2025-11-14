@@ -13,6 +13,8 @@ from PIL import Image
 import clientmethod
 from customtkinter import CTkButton, CTkFrame
 
+from app import App
+
 # Chatroom File
 # - Made using Python 3.13
 

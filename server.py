@@ -42,7 +42,7 @@ def start():
     while running:
         try:
             conn, addr = server.accept()
-            thread = threading.Thread(target=handle_client, args=(conn, addr))
+            thread = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
             thread.start()
             print(f"[ACTIVE CONNECTIONS] {len(users)}")
         except socket.timeout:

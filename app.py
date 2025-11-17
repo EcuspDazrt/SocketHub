@@ -6,12 +6,18 @@ import customtkinter as ctk
 from PIL import Image
 import server
 from customtkinter import CTkButton, CTkFrame
+import sys, os
 
 # Launcher File
 # - Made using Python 3.13
 
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
+
+def resource_path(path):
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, path)
+    return os.path.join(os.path.dirname(__file__), path)
 
 def main():
     app_instance = App()
@@ -32,13 +38,13 @@ class App(ctk.CTk):
         self.geometry("803x532")
         self.configure(fg_color="#95B3CF")
         self.resizable(False, False)
-        self.iconbitmap("resources/logo.ico")
+        self.iconbitmap(resource_path("resources/logo.ico"))
 
         self.colors = ["#EBEBEB", "#FFFFFF", "#0078FF", "#4D4D4D", "#0063D2"]
 
         long_logo = ctk.CTkImage(
-            light_image=Image.open("resources/launchertitle.png"),
-            dark_image=Image.open("resources/launchertitle.png"),
+            light_image=Image.open(resource_path("resources/launchertitle.png")),
+            dark_image=Image.open(resource_path("resources/launchertitle.png")),
             size=(250, 100)
         )
 

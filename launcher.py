@@ -2,13 +2,17 @@ import subprocess
 import sys
 import os
 
-if getattr(sys, "frozen", False):
-    launcher_dir = os.path.dirname(sys.executable)  # path to the frozen launcher EXE
-else:
-    launcher_dir = os.path.dirname(__file__)       # path to .py script
+def real_exe_dir():
+    # When frozen, sys.argv[0] gives the real executable path on disk
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.argv[0]))
+    else:
+        return os.path.dirname(__file__)
 
+launcher_dir = real_exe_dir()
 GUI_EXE = os.path.join(launcher_dir, "SocketHubGUI.exe")
-print("Running GUI from:", GUI_EXE)  # debug
+
+print("Running GUI from:", GUI_EXE)
 
 while True:
     proc = subprocess.Popen([GUI_EXE])

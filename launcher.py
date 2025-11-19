@@ -10,7 +10,7 @@ def real_exe_dir():
         return os.path.dirname(__file__)
 
 launcher_dir = real_exe_dir()
-GUI_EXE = os.path.join(launcher_dir, "SocketHubGUI.exe")
+GUI_EXE = os.path.join(launcher_dir, "SocketHub.exe")
 
 print("Running GUI from:", GUI_EXE)
 

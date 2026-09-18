@@ -1,12 +1,10 @@
 # SocketHub
 # - Secure user to user chatroom experience, featuring text and file sharing, without a limit.
-import socket
-import threading
+import server
+import socket, threading, sys, os
 import customtkinter as ctk
 from PIL import Image
-import server
 from customtkinter import CTkButton, CTkFrame
-import sys, os
 
 # Launcher File
 # - Made using Python 3.13
@@ -88,7 +86,8 @@ class App(ctk.CTk):
 
     def start_server(self):
         self.is_hosting = True
-        threading.Thread(target=server.start, daemon=True).start()
+        local_server = server.Server()
+        threading.Thread(target=local_server.start, daemon=True).start()
         ip = socket.gethostbyname(socket.gethostname())
         import chatroom
         self.withdraw()

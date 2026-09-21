@@ -3,17 +3,12 @@
 
 # - Chatroom
 
-import threading
-import time
-from tkinter import filedialog
-
+import threading, time, sys, os, re, subprocess
 import customtkinter as ctk
+import theme as t
+import client
+from tkinter import filedialog
 from PIL import Image
-import clientmethod
-import sys, os
-
-# Chatroom File
-# - Made using Python 3.13
 
 def resource_path(path):
     if getattr(sys, "frozen", False):
@@ -24,7 +19,7 @@ ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
 class Chatroom(ctk.CTkToplevel):
-    def __init__(self,parent,ip, is_host=False):
+    def __init__(self, parent, ip, username, is_host=False):
         super().__init__(parent)
         self.is_host = is_host
         self.parent = parent
@@ -35,7 +30,7 @@ class Chatroom(ctk.CTkToplevel):
         self.iconbitmap(resource_path("resources/logo.ico"))
         self.lift()
         self.users = {}
-        self.username_sent = False
+        self.username = username
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.colors = ["#EBEBEB", "#FFFFFF", "#0078FF", "#4D4D4D", "#0063D2"]
@@ -51,14 +46,14 @@ class Chatroom(ctk.CTkToplevel):
         logo_label.image = long_logo
         logo_label.place(x=0, y=00)
 
-        self.cuserspanel = ctk.CTkScrollableFrame(self, width=179, height=532, fg_color="#B9C3CD")
-        self.cuserspanel.place(x=630, y=0)
+        self.users_panel = ctk.CTkScrollableFrame(self, width=179, height=532, fg_color="#B9C3CD")
+        self.users_panel.place(x=630, y=0)
 
-        self.users_header = ctk.CTkLabel(self.cuserspanel, text="Users:", font=("Roboto", 25, "bold"), text_color="white", fg_color="#B9C3CD")
+        self.users_header = ctk.CTkLabel(self.users_panel, text="Users:", font=("Roboto", 25, "bold"), text_color="white", fg_color="#B9C3CD")
         self.users_header.pack(fill="x", pady=(10,5))
 
-        self.cusersline = ctk.CTkFrame(self, width=15, height=560, fg_color="#839EB7")
-        self.cusersline.place(x=630, y=-20)
+        self.users_line = ctk.CTkFrame(self, width=15, height=560, fg_color="#839EB7")
+        self.users_line.place(x=630, y=-20)
 
         self.chat_frame = ctk.CTkScrollableFrame(self, width=550, height=350, fg_color="#95B3CF")
         self.chat_frame.place(x=30, y=70)
@@ -71,21 +66,23 @@ class Chatroom(ctk.CTkToplevel):
         self.send_button = ctk.CTkButton(self, text="Send", command=self.send, width=100)
         self.send_button.place(x=520, y=485)
 
-
         self.file_button = ctk.CTkButton(self, text="+", font=("Roboto", 20), command=self.send_file, width=30, height=30)
         self.file_button.place(x=521, y=445)
 
-        self.messages = []
+        self._set_input(False)
 
-        threading.Thread(target=lambda: clientmethod.start(ip, self.display_message, self.display_users), daemon=True).start()
+        self.messages = []
+        self.client = client.Client()
 
         self.titlebar = ctk.CTkLabel(self, text=f"Anonymous's Chatroom", font=("Roboto", 25, "bold"), text_color="white")
         self.titlebar.place(x=180, y=10)
 
+        threading.Thread(target=lambda: self.client.start(ip, self.display_message, self.display_users), daemon=True).start()
+
     def on_close(self):
         try:
             # Send disconnect message to the server
-            clientmethod.send_message("!DISCONNECT")
+            self.client.send_message("!DISCONNECT")
         except Exception as e:
             print(f"[ERROR] Could not send disconnect: {e}")
         finally:
@@ -93,8 +90,8 @@ class Chatroom(ctk.CTkToplevel):
             self.destroy()
             if self.is_host:
                 try:
-                    import server
-                    server.stop()
+                    from app import App
+                    self.parent.local_server.stop()
                     time.sleep(0.2)
                 except Exception as e:
                     print("[ERROR STOPPING SERVER]", e)
@@ -104,34 +101,52 @@ class Chatroom(ctk.CTkToplevel):
             except Exception as e:
                 print(f"[ERROR] Could not deiconify the chatroom: {e}")
             if self.is_host:
-
-                import sys
-                import subprocess
-                import os
-
                 sys.exit(5)
 
-
-
     def display_message(self, msg):
-        self.after(0, lambda: self._display(msg))
+        self.after(0, lambda: self._handle(msg))
 
-    def display_users(self, users, conns):
+    def _handle(self, msg):
+        if msg == "[CONNECTED]":
+            self._set_input(True)
+            self.client.send_message(self.username)  # first message is the username
+            return
+        if msg.startswith("[ERROR] Could not connect"):
+            print(msg)  # keep the raw error for debugging
+            msg = "Couldn't reach that room. Close this window to go back."
+        elif msg.startswith("[DISCONNECTED]"):
+            print(msg)
+            self._set_input(False)
+            msg = "Connection lost. Close this window to go back."
+        self._display(msg)
+
+    def _set_input(self, enabled):
+        state = "normal" if enabled else "disabled"
+        for w in (self.entry, self.send_button, self.file_button):
+            w.configure(state=state)
+        if enabled:
+            self.entry.focus()
+
+    def display_users(self, users):
+        self.after(0, lambda: self._update_users(users))
+
+    def _update_users(self, users):
         if users:
             first_user = next(iter(users.values()))
             self.titlebar.configure(text=f"{first_user}'s Chatroom")
 
         self.users = users
 
-        for widget in self.cuserspanel.winfo_children()[1:]:
+        for widget in self.users_panel.winfo_children()[1:]:
             if widget.winfo_exists():
                 widget.destroy()
 
         for user in users.values():
-            label = ctk.CTkLabel(self.cuserspanel, text=user, anchor="center", justify="center", text_color="white", fg_color="#9AAFC5", corner_radius=6, width=160, height=25)
+            label = ctk.CTkLabel(self.users_panel, text=user, anchor="center", justify="center", text_color="white", fg_color="#9AAFC5", corner_radius=6, width=160, height=25)
             label.pack(fill="x", pady=3, padx=10)
 
-    def _display(self, msg):
+    def _display(self, msg, own=False):
+        stick = own or self._at_bottom()
         if msg.startswith("[THUMBNAIL]"):
             try:
                 parts = msg.replace("[THUMBNAIL] ", "").split("|")
@@ -139,9 +154,10 @@ class Chatroom(ctk.CTkToplevel):
                 frame = ctk.CTkFrame(self.chat_frame, fg_color="transparent")
                 frame.pack(fill="x", pady=(1, 0), anchor="w")
 
-                from PIL import Image
                 img = Image.open(thumb_path)
-                ctk_img = ctk.CTkImage(light_image=img, size=(120, 120))
+                w, h = img.size
+                scale = min(1.0, 120 / max(w, h))
+                ctk_img = ctk.CTkImage(light_image=img, size=(max(1, int(w * scale)), max(1, int(h * scale))))
                 img_label = ctk.CTkLabel(frame, image=ctk_img, text="")
                 img_label.image = ctk_img
                 img_label.pack(anchor="w", padx=5, pady=(3, 3))
@@ -154,12 +170,14 @@ class Chatroom(ctk.CTkToplevel):
             frame.pack(fill="x", pady=(1, 0), anchor="w")
 
             if frame:
-
-                label = ctk.CTkLabel(frame, text=msg, anchor="w", justify="left", text_color="white", wraplength=480)
-                label.pack(fill="x", padx=(5,5), pady=0)
+                label = ctk.CTkLabel(
+                    frame, text=msg, wraplength=480, text_color=t.TEXT,
+                    anchor="e" if own else "w", justify="right" if own else "left",
+                    fg_color=t.OWN_BUBBLE if own else "transparent", corner_radius=8,
+                )
+                label.pack(anchor="e" if own else "w", padx=5)
 
                 if "is trying to share" in msg and "Press the button" in msg:
-                    import re
                     match = re.search(r"share\s+(.+?)\s+with you", msg)
                     if match:
                         filename = match.group(1).strip()
@@ -168,11 +186,17 @@ class Chatroom(ctk.CTkToplevel):
                         accept_btn.configure(command=lambda f=filename, b=accept_btn: self.accept_file(f, b))
                         accept_btn.pack(side="right", padx=(10, 10))
 
-            self.chat_frame._parent_canvas.yview_moveto(1)  # scroll to bottom
+            if stick: self._scroll_down()
 
+    def _at_bottom(self):
+        return self.chat_frame._parent_canvas.yview()[1] >= 0.99
+
+    def _scroll_down(self):
+        self.chat_frame.update_idletasks()
+        self.chat_frame._parent_canvas.yview_moveto(1)
 
     def accept_file(self, filename, button):
-        clientmethod.send_message(f"!ACCEPT {filename}")
+        self.client.send_message(f"!ACCEPT {filename}")
         button.configure(state="disabled", text="Accepted")
 
     def send(self):
@@ -180,18 +204,16 @@ class Chatroom(ctk.CTkToplevel):
         if msg.startswith("!FILE"):
             self.send_file()
             return
-        if not self.username_sent:
-            self.username_sent = True
         else:
             if not msg.startswith("!ACCEPT"):
-                self.display_message(f"You: {msg}")  # show your own message immediately
-        clientmethod.send_message(msg)
-        self.entry.delete(0, "end")
+                self._display(msg, own=True)  # show your own message immediately
+        self.client.send_message(msg)
+        self.entry.focus()
 
     def send_file(self):
         filepath = filedialog.askopenfilename()
         if filepath:
-            clientmethod.send_file(filepath)
+            self.client.send_file(filepath)
 
 
 if __name__ == "__main__":

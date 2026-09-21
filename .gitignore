@@ -1,2 +1,7 @@
 venv
 downloads
+*.pyc
+*.iml
+*.xml
+server_files
+downloads

@@ -3,5 +3,8 @@ downloads
 *.pyc
 *.iml
 *.xml
+*.spec
+dist
+build
 server_files
 downloads

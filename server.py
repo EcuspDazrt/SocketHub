@@ -116,7 +116,9 @@ class Server:
             self.handle_disconnect(conn, addr, username)
 
 
-    def run_responder(self, tcp_port=5051):
+    def run_responder(self, tcp_port: int=5051) -> None:
+        """Runs the thread that allows other users to join. Waits for data to be sent, and sends a reply
+        with the information necessary to join the server."""
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("", DISCOVERY_PORT))
@@ -281,6 +283,7 @@ class Server:
 
 
     def get_room_name(self):
+        """Returns the name of the room, retrieved from the users list itself."""
         return next(iter(self.users.values())) if self.users else 'Anonymous'
 
 

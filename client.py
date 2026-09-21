@@ -20,6 +20,8 @@ class Client:
 
     # <---------- Initialization ----------->
     def start(self, ip: str, message_callback: Callable, display_users: Callable) -> None:
+        """Connects the client to the desired server, initializes external functions, and ensures user is
+        connected before allowing input from the user."""
         self.first_user = "Anonymous"
         self._message_callback = message_callback
         self._users = display_users
@@ -41,6 +43,7 @@ class Client:
     # <---------- Utility ---------->
     @staticmethod
     def read_header(h: str) -> str:
+        """Parses the header (removes spacing)"""
         data = ""
         for i in range(HEADER):
             if " " not in data:
@@ -51,6 +54,7 @@ class Client:
 
     @staticmethod
     def pad_header(header: str) -> str:
+        """Adds spaces to header so it reaches desired length. Guards against excessively long headers."""
         if len(header) > HEADER:
             raise Exception('header is too long.')
         header += b" " * (HEADER - len(header))
@@ -58,6 +62,8 @@ class Client:
 
 
     def _recv_exact(self, n: int) -> bytes:
+        """Helper function meant to retrieve the exact amount of bytes inputted (needed since some pieces of
+        data can be dropped)."""
         buf = bytearray()
         while len(buf) < n:
             chunk = self.client.recv(n - len(buf))
@@ -70,6 +76,7 @@ class Client:
 
     # <---------- Sending functions ---------->
     def send_message(self, msg: str) -> None:
+        """Sends a message to the server (host user) for it to distribute to other users."""
         if self.client:
             msg_bytes = msg.encode(FORMAT)
             header = f"MSG|{len(msg_bytes)}".encode(FORMAT)
@@ -78,6 +85,8 @@ class Client:
 
 
     def send_thumbnail(self, file_path: str, file_name: str) -> None:
+        """Processes an image, turns it into a thumbnail, and sends it as a preview to the server
+        before the file itself is sent."""
         try:
             img = Image.open(file_path)
             img.thumbnail((150, 150))
@@ -93,6 +102,8 @@ class Client:
 
 
     def send_file(self, file_path: str) -> None:
+        """Sends a file to the server. The server stores it for future use. Sends a thumbnail if it's an image
+        extension."""
         if self.client and os.path.exists(file_path):
             file_name = os.path.basename(file_path)
             file_size = os.path.getsize(file_path)
@@ -118,6 +129,7 @@ class Client:
 
     # <---------- Receiving functions ----------->
     def display_data(self, separated_header: list) -> None:
+        """Handles data display on the chatroom by processing the data and header information being sent."""
         data_type = separated_header[0]
         length = int(separated_header[1])
         match data_type:
@@ -152,6 +164,7 @@ class Client:
 
 
     def receive(self) -> None:
+        """Raw function that receives the data sent by the server (header and payload)."""
         while True:
             try:
                 h = self._recv_exact(HEADER)
@@ -171,6 +184,7 @@ class Client:
 
 
     def receive_file(self, file_name: str, file_size: int, download_dir: str="downloads") -> None:
+        """Helper function that allows the user to download a file to their own disc."""
         os.makedirs(download_dir, exist_ok=True)
         safe_name = os.path.basename(file_name)
         file_path = os.path.join(download_dir, safe_name)

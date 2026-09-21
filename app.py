@@ -7,9 +7,6 @@ import theme as t
 from PIL import Image
 from customtkinter import CTkButton, CTkFrame
 
-# Launcher File
-# - Made using Python 3.13
-
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
@@ -37,12 +34,10 @@ class App(ctk.CTk):
         self.is_hosting = False
         self.title("SocketHub Client Launcher")
         self.geometry("803x532")
-        self.configure(fg_color="#95B3CF")
+        self.configure(fg_color=t.BG)
         self.resizable(False, False)
         self.iconbitmap(resource_path("resources/logo.ico"))
         self.username = None
-
-        self.colors = ["#EBEBEB", "#FFFFFF", "#0078FF", "#4D4D4D", "#0063D2"]
 
         long_logo = ctk.CTkImage(
             light_image=Image.open(resource_path("resources/launchertitle.png")),
@@ -55,24 +50,24 @@ class App(ctk.CTk):
         logo_label.image = long_logo
         logo_label.place(x=255, y=60)
 
-        self.outline_frame = ctk.CTkFrame(self, width=438, height=230, fg_color=self.colors[0])
+        self.outline_frame = ctk.CTkFrame(self, width=438, height=230, fg_color=t.CARD)
         self.outline_frame.place(relx=0.5, y=275, anchor="center")
-        self.main_frame = ctk.CTkFrame(self.outline_frame, width=433, height=222, fg_color=self.colors[1])
+        self.main_frame = ctk.CTkFrame(self.outline_frame, width=433, height=222, fg_color=t.WHITE)
         self.main_frame.place(relx=0.5, rely=0.5, anchor="center")
 
         self.host_button = ctk.CTkButton(self.main_frame, width=187, height=37,
                                          text="Host a Server", font=("Arial", 14, "bold"),
-                                         fg_color=self.colors[2], text_color=self.colors[1],
+                                         fg_color=t.ACCENT, text_color=t.WHITE,
                                          border_width=3, border_color=t.ACCENT_DARK,
                                          command=self.start_server)
         self.host_button.place(relx=0.5, y=50, anchor="center")
 
-        self.host_description = ctk.CTkLabel(self.main_frame, width=175, height=20, text="Host a chatroom on your device", font=("Arial", 11, "normal"), text_color=self.colors[3])
+        self.host_description = ctk.CTkLabel(self.main_frame, width=175, height=20, text="Host a chatroom on your device", font=("Arial", 11, "normal"), text_color=t.MUTED)
         self.host_description.place(relx=0.5, y=80, anchor="center")
 
         self.search_button = ctk.CTkButton(self.main_frame, width=187, height=37,
                                            text="Search For a Server", font=("Arial", 14, "bold"),
-                                           fg_color=self.colors[2], text_color=self.colors[1],
+                                           fg_color=t.ACCENT, text_color=t.WHITE,
                                            border_width=3, border_color=t.ACCENT_DARK,
                                            command=self.search)
         self.search_button.place(relx=0.5, y=145, anchor="center")
@@ -82,14 +77,17 @@ class App(ctk.CTk):
         self._entry_border = self.username_entry.cget("border_color")
 
 
-    def search(self):
+    def search(self) -> None:
+        """Function called by the search button for the user to be able to enter the
+        room searching part of the widget. Exits the app widget itself."""
         from server_search import ServerSearch
         if not self.get_username(): return
         self.withdraw()
         ServerSearch(self)
 
 
-    def start_server(self):
+    def start_server(self) -> None:
+        """If the user wants to be a host, it spins up a server and navigates them into their own chatroom."""
         from chatroom import Chatroom
         username = self.get_username()
         if not username: return
@@ -101,17 +99,23 @@ class App(ctk.CTk):
         self.withdraw()
         Chatroom(self, ip, username, is_host=True)
 
-    def on_host_exit(self):
+
+    def on_host_exit(self) -> None:
+        """Specifies what happens when the host closes out of their window. Destroys the widget."""
         self.is_hosting = True
         self.destroy()
 
-    def close_chatroom(self):
+    @staticmethod
+    def close_chatroom() -> None:
+        """Calls the chatroom exit function of the app instance."""
         App.instance.on_host_exit()
 
-    def get_username(self):
+
+    def get_username(self) -> str:
+        """Retrieves the username from the username entry field."""
         name = self.username_entry.get().strip()[:20]
         if not name or not (name.isascii() and name.isprintable()):
-            self.username_entry.configure(border_color="#D9534F")
+            self.username_entry.configure(border_color=t.FAIL)
             self.username_entry.focus()
             return None
         self.username_entry.configure(border_color=self._entry_border)

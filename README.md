@@ -1,6 +1,6 @@
 # SocketHub
 
-**SocketHub** is a local-network peer-to-peer chat application built with Python. It supports real-time text messaging, file sharing with transfer requests, and image thumbnail previews — all wrapped in a clean GUI built with CustomTkinter.
+**SocketHub** is a local-network peer-to-peer chat application built with Python. It supports real-time text messaging, file sharing with transfer requests, and image thumbnail previews, all wrapped in a clean GUI built with CustomTkinter.
 
 ---
 
@@ -21,10 +21,11 @@
 SocketHub/
 ├── app.py            # Main launcher GUI (host or join screen)
 ├── chatroom.py       # Chatroom window UI and logic
-├── clientmethod.py   # Client-side socket handling (send/receive)
-├── client.py         # Standalone terminal client (for testing)
+├── client.py         # Client-side socket handling (send/receive)
 ├── server.py         # Server logic (connections, broadcasting, file handling)
-├── launcher.py       # Entry point wrapper — restarts GUI when hosting ends
+├── server_search.py  # Room joining logic, handle in its own page
+├── theme.py          # Centralized theme, used in every UI-based file
+├── launcher.py       # Entry point wrapper, restarts GUI when hosting ends
 ├── requirements.txt  # Python dependencies
 └── resources/
     ├── logo.ico
@@ -68,7 +69,7 @@ Then click **Host a Server** in the launcher window. Your local IP will be used 
 ```bash
 python app.py
 ```
-Enter the host's local IP address and click **Join a Server**.
+Click **Join a Server** and your desired server should show up in the drop-down list.
 
 ### Running the Executable
 
@@ -79,7 +80,7 @@ If you have the compiled `SocketHub.exe`, simply run `launcher.py` (or the compi
 ## How It Works
 
 1. **Hosting**: `server.py` binds to port `5051` on the local machine and listens for incoming connections. Each client gets its own thread.
-2. **Joining**: `clientmethod.py` connects to the server and starts a background receive thread. Messages, file notifications, thumbnails, and user list updates all arrive over the same socket using a custom header protocol.
+2. **Joining**: `client.py` connects to the server and starts a background receive thread. Messages, file notifications, thumbnails, and user list updates all arrive over the same socket using a custom header protocol.
 3. **File Transfers**: When a user sends a file, the server stores it temporarily and broadcasts a transfer request to other users. Recipients click **Accept** to receive the file, which is saved to a local `downloads/` folder.
 4. **Headers**: All messages use a 64-byte fixed-length header formatted as `TYPE|LENGTH|...` to frame data before reading the payload.
 

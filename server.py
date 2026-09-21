@@ -1,7 +1,9 @@
 import socket, threading, os, re, json
+from ssl import SSLSocket
 
 HEADER = 64
 PORT = 5051
+DISCOVERY_PORT = 5052
 FORMAT = 'utf-8'
 DISCONNECT_MESSAGE = "!DISCONNECT"
 CONNECTIONS_MESSAGE = "!CONNECTIONS"
@@ -25,11 +27,11 @@ class Server:
     # <---------- Base Functionality ---------->
     def init_server(self) -> None:
         """Instantiates server variables, spins up the process, and gives it an address"""
-        server = socket.gethostbyname(socket.gethostname())
-        self.server_address = (server, PORT)
+        host_ip = socket.gethostbyname(socket.gethostname())
+        self.server_address = (host_ip, PORT)
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # allow reuse
-        self.server.bind(self.server_address)
+        self.server.bind(('', PORT))
 
 
     def start(self) -> None:
@@ -86,7 +88,7 @@ class Server:
         print(f"[NEW CONNECTION] {addr} connected.")
         with self.clients_lock:
             self.clients[addr] = conn
-        username = " "
+        username = "Anonymous"
         username_sent = False
         connected = True
         try:
@@ -98,13 +100,13 @@ class Server:
                 data_type = parts[0]
 
                 if data_type == "MSG":
-                    connected, username_sent = self.parse_message(parts, conn, addr, username, username_sent)
+                    connected, username_sent, username = self.parse_message(parts, conn, addr, username, username_sent)
 
                 if data_type == "THUMB":
                     self.parse_thumb(parts, conn, addr)
 
                 if data_type == "FILE":
-                    self.parse_file(parts, conn, username)
+                    self.parse_file(parts, conn, username, addr)
 
         except ConnectionResetError:
             print(f"{username} disconnected.")
@@ -112,6 +114,22 @@ class Server:
             print(f"[ERROR] {addr}: {e}")
         finally:
             self.handle_disconnect(conn, addr, username)
+
+
+    def run_responder(self, tcp_port: int=5051) -> None:
+        """Runs the thread that allows other users to join. Waits for data to be sent, and sends a reply
+        with the information necessary to join the server."""
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("", DISCOVERY_PORT))
+        try:
+            while self.running:
+                data, addr = s.recvfrom(1024)
+                if data == b"SOCKETHUB?":
+                    reply = {"name": self.get_room_name(), "port": tcp_port}
+                    s.sendto(json.dumps(reply).encode(), addr)
+        finally:
+            s.close()
 
 
     def handle_disconnect(self, conn: SSLSocket, addr: tuple, username: str) -> None:
@@ -166,7 +184,7 @@ class Server:
 
 
     @classmethod
-    def send_file(cls, conn: SSLSocket, file_path: str, file_name: str) -> None:
+    def send_file(cls, conn: SSLSocket, file_path: str, file_name: str, file_size: int) -> None:
         """Sends file header before the file. Streams the file over to the intended user."""
         header = f"FILE|{file_size}|{file_name[1]}".encode(FORMAT)
         header = cls.pad_header(header)
@@ -201,6 +219,7 @@ class Server:
     # <---------- Broadcasting ---------->
     def broadcast(self, message: str, sender_addr: tuple, username: str) -> None:
         """Sends message to all users connected to the server."""
+        failures = []
         with self.clients_lock:
             for addr, conn in list(self.clients.items()):
                 if addr == sender_addr:
@@ -211,7 +230,9 @@ class Server:
                     header = self.pad_header(header)
                     conn.sendall(header + data)
                 except:
-                    self.handle_disconnect(conn, addr, username)
+                    failures.append((conn, addr, username))
+        for failure in failures:
+            self.handle_disconnect(failure[0], failure[1], failure[2])
 
 
     def broadcast_file(self, file_name: str, username: str, sender_addr: tuple) -> None:
@@ -255,9 +276,15 @@ class Server:
     @classmethod
     def pad_header(cls, header: str) -> str:
         """Adds empty characters to header so it reaches desired length"""
-        if len(header) < HEADER:
-            header += b" " * (HEADER - len(header))
+        if len(header) > HEADER:
+            raise Exception('header is too long.')
+        header += b" " * (HEADER - len(header))
         return header
+
+
+    def get_room_name(self):
+        """Returns the name of the room, retrieved from the users list itself."""
+        return next(iter(self.users.values())) if self.users else 'Anonymous'
 
 
 
@@ -277,7 +304,7 @@ class Server:
         self.send_message(f"[RECEIVING FILE] '{file_name}' ({file_size} bytes) from {sender_name}.", conn)
 
         file_name = file_path.split('\\')
-        self.send_file(conn, file_path, file_name)
+        self.send_file(conn, file_path, file_name, file_size)
 
 
     def parse_message(self, parts: list, user_conn: SSLSocket, user_addr: tuple,
@@ -295,27 +322,27 @@ class Server:
             with self.users_lock:
                 self.users[user_addr] = username
             self.send_users()
-            return True, True
+            return True, True, username
 
         if message == DISCONNECT_MESSAGE:
             print(f"{username} disconnected.")
             self.handle_disconnect(user_conn, user_addr, username)
-            return False, username_sent
+            return False, username_sent, username
 
         if message == CONNECTIONS_MESSAGE:
             try:
-                conn.send(f"There are {len(self.users)} connections.".encode(FORMAT))
+                user_conn.send(f"There are {len(self.users)} connections.".encode(FORMAT))
             except:
                 pass
             return True, username_sent
 
         if message.startswith(ACCEPT_MESSAGE):
-            self.accept_file(conn, message)
-            return True, username_sent
+            self.accept_file(user_conn, message)
+            return True, username_sent, username
 
         print(f"[{username}] {message}")
         self.broadcast(f"{username}: {message}", user_addr, username)
-        return True, username_sent
+        return True, username_sent, username
 
 
     def parse_thumb(self, parts: list, conn: SSLSocket, addr: tuple) -> None:
@@ -331,7 +358,7 @@ class Server:
                 self.send_thumb(conn2, length, filename, thumb_data)
 
 
-    def parse_file(self, parts: list, conn: SSLSocket, username: str) -> None:
+    def parse_file(self, parts: list, conn: SSLSocket, username: str, addr: tuple) -> None:
         """Receives file on the server side. Stores the file and determines which
         users to broadcast the file to."""
         file_size: int = int(parts[1])
